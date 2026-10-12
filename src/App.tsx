@@ -13,13 +13,17 @@ import { SetupForm } from './components/SetupForm'
 import { SiteHeader } from './components/SiteHeader'
 import { TurnTracker } from './components/TurnTracker'
 import { useCharacter } from './store/useCharacter'
+import { useAccountStore } from './store/cloudSync'
 
 type Page = 'tracker' | 'settings'
 
 function App() {
   const character = useCharacter()
-  const [editing, setEditing] = useState(false)
+  const accountReady = useAccountStore((s) => s.ready)
+  const uid = useAccountStore((s) => s.uid)
+  const [editingFor, setEditingFor] = useState<string | null>(null)
   const [page, setPage] = useState<Page>('tracker')
+  const editing = editingFor === (uid ?? 'guest')
   // Full-width header on top. Below it, the middle column gets its own background;
   // the page edges keep the theme's base color.
   const shell = (content: ReactNode) => (
@@ -31,19 +35,23 @@ function App() {
 
   const header = (
     <SiteHeader
-      character={character}
+      character={accountReady ? character : null}
       onHome={() => setPage('tracker')}
       onSettings={() => setPage('settings')}
       onSettingsPage={page === 'settings'}
     />
   )
 
+  if (!accountReady) {
+    return shell(<main className="p-8 text-center text-sm opacity-70">Loading your character…</main>)
+  }
+
   if (page === 'settings') {
     return shell(<SettingsPage onBack={() => setPage('tracker')} />)
   }
 
   if (!character || editing) {
-    return shell(<SetupForm initial={character?.build ?? null} onDone={() => setEditing(false)} />)
+    return shell(<SetupForm key={uid ?? 'guest'} initial={character?.build ?? null} onDone={() => setEditingFor(null)} />)
   }
 
   return shell(
@@ -53,7 +61,7 @@ function App() {
           <p className="text-sm opacity-70">{character.title}</p>
           {character.speciesLine && <p className="text-xs opacity-50">{character.speciesLine}</p>}
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>
+        <button className="btn btn-ghost btn-sm" onClick={() => setEditingFor(uid ?? 'guest')}>
           Edit
         </button>
       </div>

@@ -14,10 +14,14 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "daisyui": "^5.7.47",
+    "firebase": "^13.0.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwindcss": "^4.3.3",
     "zustand": "^5.0.15"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.13.6"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
