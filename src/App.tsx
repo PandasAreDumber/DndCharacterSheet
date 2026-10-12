@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ActionTabs } from './components/ActionTabs'
+import { EffectsPanel } from './components/EffectsPanel'
 import { HpPanel } from './components/HpPanel'
 import { MessageToast } from './components/MessageToast'
 import { Passives } from './components/Passives'
@@ -30,6 +31,7 @@ function App() {
       </header>
       <TurnTracker character={character} />
       <HpPanel character={character} />
+      <EffectsPanel character={character} />
       <ActionTabs character={character} />
       <ResourcePanel character={character} />
       <Passives character={character} />

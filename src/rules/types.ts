@@ -198,6 +198,7 @@ export type GameEvent =
   | { type: 'HEAL'; amount: number }
   | { type: 'SET_TEMP_HP'; amount: number }
   | { type: 'END_EFFECT'; effectId: number }
+  | { type: 'DISMISS_FOLLOW_UPS' } // player skips the follow up (e.g. no Inspiring Smite this time)
 
 /** State = base with every event in the log applied. Undo = drop the last event. */
 export type Tracker = {

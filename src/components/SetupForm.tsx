@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import type { AbilityName, CastingTime, CharacterBuild, Spell } from '../rules/types'
+import type { AbilityName, CharacterBuild, Spell } from '../rules/types'
 import { useCharacterStore } from '../store/characterStore'
 import { classOptions, spellModifierOptions, subclassOptions } from '../store/selectors'
+import { SpellForm } from './SpellForm'
 
 const ABILITIES: { id: AbilityName; label: string }[] = [
   { id: 'str', label: 'STR' },
@@ -10,13 +11,6 @@ const ABILITIES: { id: AbilityName; label: string }[] = [
   { id: 'int', label: 'INT' },
   { id: 'wis', label: 'WIS' },
   { id: 'cha', label: 'CHA' },
-]
-
-const CASTING_TIMES: { id: CastingTime; label: string }[] = [
-  { id: 'action', label: 'Action' },
-  { id: 'bonus', label: 'Bonus action' },
-  { id: 'reaction', label: 'Reaction' },
-  { id: 'other', label: 'Other (1 min+)' },
 ]
 
 // Number fields are kept as text while typing so the box can be empty.
@@ -61,20 +55,10 @@ function toDraft(b: CharacterBuild | null): Draft {
 const toInt = (s: string) => Number.parseInt(s, 10)
 const inRange = (n: number, lo: number, hi: number) => Number.isInteger(n) && n >= lo && n <= hi
 
-const emptySpell = (): Spell => ({
-  name: '',
-  level: 1,
-  castingTime: 'action',
-  concentration: false,
-  ritual: false,
-  upcast: false,
-})
-
 export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null; onDone: () => void }) {
   const saveBuild = useCharacterStore((s) => s.saveBuild)
   const deleteCharacter = useCharacterStore((s) => s.deleteCharacter)
   const [draft, setDraft] = useState<Draft>(() => toDraft(initial))
-  const [newSpell, setNewSpell] = useState<Spell>(emptySpell)
 
   const update = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }))
   const subclasses = subclassOptions(draft.classId)
@@ -103,12 +87,9 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
     onDone()
   }
 
-  const addSpell = () => {
-    const name = newSpell.name.trim()
-    if (!name) return
-    const lower = name.toLowerCase()
-    update({ spells: [...draft.spells.filter((s) => s.name.toLowerCase() !== lower), { ...newSpell, name }] })
-    setNewSpell(emptySpell())
+  const addSpell = (spell: Spell) => {
+    const lower = spell.name.toLowerCase()
+    update({ spells: [...draft.spells.filter((s) => s.name.toLowerCase() !== lower), spell] })
   }
 
   return (
@@ -251,56 +232,8 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
             ))}
           </ul>
         )}
-        <div className="mt-2 flex flex-col gap-2 rounded-box border border-base-300 p-3">
-          <div className="flex gap-2">
-            <input
-              className="input flex-1"
-              placeholder="Spell name"
-              value={newSpell.name}
-              onChange={(e) => setNewSpell({ ...newSpell, name: e.target.value })}
-              onKeyDown={(e) => e.key === 'Enter' && addSpell()}
-            />
-            <select
-              className="select w-28"
-              value={newSpell.level}
-              onChange={(e) => setNewSpell({ ...newSpell, level: toInt(e.target.value) })}
-              aria-label="Spell level"
-            >
-              {Array.from({ length: 10 }, (_, l) => (
-                <option key={l} value={l}>
-                  {l === 0 ? 'Cantrip' : `Level ${l}`}
-                </option>
-              ))}
-            </select>
-          </div>
-          <select
-            className="select w-full"
-            value={newSpell.castingTime}
-            onChange={(e) => setNewSpell({ ...newSpell, castingTime: e.target.value as CastingTime })}
-            aria-label="Casting time"
-          >
-            {CASTING_TIMES.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-          <div className="flex flex-wrap gap-4 text-sm">
-            {(['concentration', 'ritual', 'upcast'] as const).map((flag) => (
-              <label key={flag} className="flex cursor-pointer items-center gap-2 capitalize">
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-sm"
-                  checked={newSpell[flag]}
-                  onChange={(e) => setNewSpell({ ...newSpell, [flag]: e.target.checked })}
-                />
-                {flag}
-              </label>
-            ))}
-          </div>
-          <button className="btn btn-sm btn-secondary" onClick={addSpell} disabled={!newSpell.name.trim()}>
-            Add spell
-          </button>
+        <div className="mt-2">
+          <SpellForm onAdd={addSpell} />
         </div>
       </fieldset>
 

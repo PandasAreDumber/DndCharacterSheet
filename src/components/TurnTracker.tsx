@@ -1,5 +1,6 @@
 import { useCharacterStore } from '../store/characterStore'
 import type { CharacterView } from '../store/selectors'
+import { FollowUpPrompt } from './FollowUpPrompt'
 
 const ECONOMIES = [
   { id: 'action', label: 'Action', color: 'btn-success' },
@@ -41,9 +42,15 @@ export function TurnTracker({ character }: { character: CharacterView }) {
           ↶ Undo
         </button>
       </div>
-      {turn.slotSpellCast && (
-        <p className="mt-2 text-center text-xs text-warning">Spell slot already used this turn</p>
+      {(turn.slotSpellCast || character.concentration) && (
+        <div className="mt-2 flex flex-wrap justify-center gap-2 text-xs">
+          {turn.slotSpellCast && <span className="badge badge-warning badge-sm">Spell slot used this turn</span>}
+          {character.concentration && (
+            <span className="badge badge-secondary badge-sm">Concentrating: {character.concentration}</span>
+          )}
+        </div>
       )}
+      <FollowUpPrompt character={character} />
     </section>
   )
 }

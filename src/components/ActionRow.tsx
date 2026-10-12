@@ -3,16 +3,19 @@ import type { ActionDef } from '../rules/types'
 import { useCharacterStore } from '../store/characterStore'
 import type { CharacterView } from '../store/selectors'
 import { useActionView } from '../store/useCharacter'
+import { Modal } from './Modal'
 
 export function ActionRow({ character, action }: { character: CharacterView; action: ActionDef }) {
   const perform = useCharacterStore((s) => s.perform)
   const [mods, setMods] = useState<string[]>([])
   const [amount, setAmount] = useState<number | undefined>(undefined)
+  const [confirming, setConfirming] = useState<{ paymentId: string; warnings: string[] } | null>(null)
   const view = useActionView(character, action, mods, amount)
 
   const toggleMod = (id: string) => setMods((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]))
 
   const pay = (paymentId: string) => {
+    setConfirming(null)
     const done = perform(action.id, paymentId, {
       ...(view.variable ? { amount: amount ?? view.variable.min } : {}),
       ...(mods.length ? { spellModifiers: mods } : {}),
@@ -91,7 +94,7 @@ export function ActionRow({ character, action }: { character: CharacterView; act
               className="btn btn-sm btn-primary"
               disabled={!p.ok}
               title={p.reason}
-              onClick={() => pay(p.id)}
+              onClick={() => (p.warnings.length ? setConfirming({ paymentId: p.id, warnings: p.warnings }) : pay(p.id))}
             >
               {p.label}
             </button>
@@ -99,6 +102,24 @@ export function ActionRow({ character, action }: { character: CharacterView; act
         </div>
       )}
       {view.reason && <p className="mt-1 text-xs italic text-warning">{view.reason}</p>}
+
+      {confirming && (
+        <Modal title={`Cast ${view.name}?`} onClose={() => setConfirming(null)}>
+          {confirming.warnings.map((w) => (
+            <p key={w} className="py-2">
+              {w}
+            </p>
+          ))}
+          <div className="modal-action">
+            <button className="btn btn-ghost" onClick={() => setConfirming(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-warning" onClick={() => pay(confirming.paymentId)}>
+              Cast anyway
+            </button>
+          </div>
+        </Modal>
+      )}
     </li>
   )
 }
