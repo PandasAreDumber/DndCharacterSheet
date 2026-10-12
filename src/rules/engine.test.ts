@@ -370,3 +370,46 @@ describe('changing the build', () => {
     expect(currentState(p, changeBuild(b, p, t)).expended).toEqual({})
   })
 })
+
+describe('basic actions', () => {
+  it('every class gets the basic actions in the right economy', () => {
+    for (const b of [sorcerer(1), paladin(1)]) {
+      const basics = getActions(b).filter((a) => a.basic)
+      expect(basics.filter((a) => a.economy === 'action').map((a) => a.name)).toEqual([
+        'Attack',
+        'Dash',
+        'Disengage',
+        'Dodge',
+        'Help',
+        'Hide',
+        'Influence',
+        'Magic',
+        'Ready',
+        'Search',
+        'Study',
+        'Utilize',
+      ])
+      expect(basics.filter((a) => a.economy === 'bonus')).toHaveLength(1)
+      expect(basics.filter((a) => a.economy === 'reaction').map((a) => a.name)).toEqual([
+        'Opportunity Attack',
+        'Readied action',
+      ])
+    }
+  })
+
+  it('Attack uses the action, Opportunity Attack uses the reaction', () => {
+    const b = paladin(5)
+    const t = run(b, [cast('basic_attack', 'use'), cast('basic_opportunity_attack', 'use')])
+    expect(currentState(b, t).turn).toMatchObject({ action: true, bonus: false, reaction: true })
+    expect(dispatch(b, t, cast('basic_dash', 'use')).ok).toBe(false)
+  })
+
+  it('Dodge ends on a new turn, Hide does not', () => {
+    const b = paladin(5)
+    const t = run(b, [cast('basic_dodge', 'use'), { type: 'NEW_TURN' }, cast('basic_hide', 'use')])
+    expect(currentState(b, t).effects.map((e) => e.name)).toEqual(['Hidden'])
+    const t2 = run(b, [cast('basic_dodge', 'use')])
+    expect(currentState(b, t2).effects.map((e) => e.name)).toEqual(['Dodging'])
+    expect(currentState(b, run(b, [{ type: 'NEW_TURN' }], t2)).effects).toEqual([])
+  })
+})

@@ -166,6 +166,7 @@ function applyPerform(build: CharacterBuild, state: CharacterState, ev: PerformE
       duration: resolveText(action.effect.duration, build),
       concentration,
       sourceActionId: action.id,
+      ...(action.effect.endsOnNewTurn ? { endsOnNewTurn: true } : {}),
     })
   }
 
@@ -243,7 +244,7 @@ export function applyEvent(build: CharacterBuild, state: CharacterState, ev: Gam
     case 'DISMISS_FOLLOW_UPS':
       return cleared
     case 'NEW_TURN':
-      return { ...state, turn: freshTurn() }
+      return { ...state, turn: freshTurn(), effects: state.effects.filter((e) => !e.endsOnNewTurn) }
     case 'SHORT_REST': {
       if (!ev.hitDice || ev.hitDice.count === 0) return applyRest(build, state, 'short')
       const spent: CharacterState = {

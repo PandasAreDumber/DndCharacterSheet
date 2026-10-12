@@ -84,6 +84,8 @@ export type EffectDef = {
   name: string
   duration: TextFormula
   concentration?: boolean
+  /** Ends automatically when the player starts a new turn (Dodge, Disengage, Ready). */
+  endsOnNewTurn?: boolean
 }
 
 export type ActionDef = {
@@ -96,6 +98,8 @@ export type ActionDef = {
   variableCost?: { resource: ResourceId; min: number }
   /** Follow up: only available right after the action with this id resolves. */
   after?: string
+  /** A basic action everyone has (Attack, Dash, ...). The UI shows these as a compact grid. */
+  basic?: boolean
   effect?: EffectDef
   spell?: Spell // set when this action is casting a spell
   note?: TextFormula
@@ -170,6 +174,7 @@ export type ActiveEffect = {
   duration: string
   concentration: boolean
   sourceActionId: string
+  endsOnNewTurn?: boolean
 }
 
 export type CharacterState = {
