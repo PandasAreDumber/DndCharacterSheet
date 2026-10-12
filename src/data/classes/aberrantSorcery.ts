@@ -1,4 +1,5 @@
 import type { GrantedSpell, Spell, SubclassDef } from '../../rules/types'
+import { abilityMod } from '../../rules/abilities'
 import { spell } from '../helpers'
 
 /** Psionic Sorcery (L6): level 1+ psionic spells can be paid with SP equal to the spell's level. */
@@ -35,6 +36,8 @@ export const aberrantSorcery: SubclassDef = {
       minLevel: 3,
       payments: [{ id: 'free', label: 'Free', costs: [] }],
       effect: { name: 'Telepathic Speech', duration: (b) => `${b.level} minutes` },
+      note: (b) =>
+        `Pick a creature you can see within 30 ft. You and it can speak telepathically while within ${Math.max(1, abilityMod(b.abilities.cha))} mile(s) of each other, for ${b.level} minutes. You both need to know a language.`,
     },
   ],
   passives: [

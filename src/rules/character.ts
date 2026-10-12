@@ -2,12 +2,14 @@
 
 import { BASIC_ACTIONS } from '../data/basicActions'
 import { CLASSES, SPECIES, SUBCLASSES } from '../data/registry'
+import { SPELL_SUMMARIES } from '../data/spellSummaries'
 import type {
   ActionDef,
   CastingTime,
   CharacterBuild,
   CharacterState,
   ClassDef,
+  FeatureSource,
   Cost,
   Economy,
   FeatureSet,
@@ -38,21 +40,31 @@ export function getClass(build: CharacterBuild): ClassDef {
   return cls
 }
 
-function featureSets(build: CharacterBuild): FeatureSet[] {
+type SourcedSet = { set: FeatureSet; source?: FeatureSource }
+
+/** Every feature set the character has, with where it comes from. Basic actions have no source. */
+function sourcedSets(build: CharacterBuild): SourcedSet[] {
   const cls = getClass(build)
   const sub = build.subclassId ? SUBCLASSES[build.subclassId] : undefined
   const species = build.speciesId ? SPECIES[build.speciesId] : undefined
   const lineage = species?.lineages.find((l) => l.id === build.lineageId)
   // Everyone gets the basic actions, then class, subclass, species and lineage.
-  const sets: (FeatureSet | undefined)[] = [
-    BASIC_ACTIONS,
-    cls,
-    sub && sub.classId === cls.id ? sub : undefined,
-    species,
-    lineage,
+  // Lineage features are tagged with the species name (e.g. Breath Weapon → Dragonborn).
+  const sets: (SourcedSet | undefined)[] = [
+    { set: BASIC_ACTIONS },
+    { set: cls, source: { kind: 'class', name: cls.name } },
+    sub && sub.classId === cls.id ? { set: sub, source: { kind: 'subclass', name: sub.name } } : undefined,
+    species ? { set: species, source: { kind: 'species', name: species.name } } : undefined,
+    species && lineage ? { set: lineage, source: { kind: 'species', name: species.name } } : undefined,
   ]
-  return sets.filter((s): s is FeatureSet => !!s)
+  return sets.filter((s): s is SourcedSet => !!s)
 }
+
+function featureSets(build: CharacterBuild): FeatureSet[] {
+  return sourcedSets(build).map((s) => s.set)
+}
+
+const withSource = <T extends object>(x: T, source?: FeatureSource): T => (source ? { ...x, source } : x)
 
 function slotResources(table: number[][]): ResourceDef[] {
   const highest = Math.max(...table.map((row) => row.length))
@@ -130,7 +142,7 @@ function spellAction(
             costs: [{ resource: r.id, amount: 1 }],
             castLevel: r.slotLevel,
           }))
-  const finalNote = note ?? spell.note
+  const finalNote = note ?? spell.note ?? SPELL_SUMMARIES[spell.name.toLowerCase()]
   return {
     id: spellActionId(spell.name),
     name: spell.name,
@@ -146,15 +158,17 @@ const atLevel = (build: CharacterBuild) => (x: { minLevel?: number }) => build.l
 
 /** Every action available at this level: class/subclass features, then spells. */
 export function getActions(build: CharacterBuild): ActionDef[] {
-  const sets = featureSets(build)
+  const sets = sourcedSets(build)
   const has = atLevel(build)
-  const features = sets.flatMap((s) => s.actions).filter(has)
+  const features = sets.flatMap(({ set, source }) => set.actions.filter(has).map((a) => withSource(a, source)))
 
   const spells: ActionDef[] = []
   const seen = new Set<string>()
-  for (const g of sets.flatMap((s) => s.grantedSpells).filter(has)) {
-    spells.push(spellAction(build, g.spell, g.extraPayments, g.note))
-    seen.add(spellActionId(g.spell.name))
+  for (const { set, source } of sets) {
+    for (const g of set.grantedSpells.filter(has)) {
+      spells.push(withSource(spellAction(build, g.spell, g.extraPayments, g.note), source))
+      seen.add(spellActionId(g.spell.name))
+    }
   }
   for (const s of build.spells) {
     const id = spellActionId(s.name)
@@ -193,7 +207,7 @@ export function getAllSpellModifiers(build: CharacterBuild): SpellModifierDef[] 
 }
 
 export function getPassives(build: CharacterBuild): PassiveDef[] {
-  return featureSets(build)
-    .flatMap((s) => s.passives)
-    .filter(atLevel(build))
+  return sourcedSets(build).flatMap(({ set, source }) =>
+    set.passives.filter(atLevel(build)).map((p) => withSource(p, source)),
+  )
 }

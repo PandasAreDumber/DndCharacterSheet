@@ -45,7 +45,7 @@ export const paladin: ClassDef = {
       economy: 'bonus',
       payments: [{ id: 'pool', label: 'Spend from pool', costs: [] }],
       variableCost: { resource: 'lay_on_hands', min: 1 },
-      note: 'Heal that many HP.',
+      note: 'Touch a creature and restore HP from your Lay on Hands pool. Pick how many points to spend.',
     },
     {
       id: 'lay_on_hands_poison',
@@ -61,6 +61,7 @@ export const paladin: ClassDef = {
       minLevel: 3,
       payments: [{ id: 'channel_divinity', label: '1 Channel Divinity', costs: [{ resource: 'channel_divinity', amount: 1 }] }],
       effect: { name: 'Divine Sense', duration: '10 minutes' },
+      note: 'For 10 minutes, you know where any Celestial, Fiend or Undead within 60 ft is, and you sense consecrated or desecrated places.',
     },
     {
       id: 'abjure_foes',
@@ -69,6 +70,8 @@ export const paladin: ClassDef = {
       minLevel: 9,
       payments: [{ id: 'channel_divinity', label: '1 Channel Divinity', costs: [{ resource: 'channel_divinity', amount: 1 }] }],
       effect: { name: 'Abjure Foes', duration: '1 minute' },
+      note: (b) =>
+        `Up to ${Math.max(1, abilityMod(b.abilities.cha))} creatures you can see within 60 ft make a WIS save against your spell save DC. On a fail they are Frightened for 1 minute or until they take damage, and can only move, take an action or take a Bonus Action on each turn (one of them).`,
     },
   ],
   passives: [

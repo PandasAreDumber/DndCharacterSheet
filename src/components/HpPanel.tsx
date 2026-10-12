@@ -21,10 +21,10 @@ export function HpPanel({ character }: { character: CharacterView }) {
   const barColor = pct > 50 ? 'progress-success' : pct > 25 ? 'progress-warning' : 'progress-error'
 
   return (
-    <section className="card bg-base-200">
+    <section className="card bg-base-100 shadow-sm">
       <div className="card-body gap-3 p-4">
         <div className="flex items-baseline justify-between">
-          <h2 className="card-title">Hit Points</h2>
+          <h2 className="card-title text-primary">Hit Points</h2>
           <div className="text-right">
             <span className="text-3xl font-bold tabular-nums">{current}</span>
             <span className="opacity-60"> / {max}</span>

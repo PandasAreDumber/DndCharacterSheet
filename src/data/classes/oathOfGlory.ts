@@ -16,6 +16,8 @@ export const oathOfGlory: SubclassDef = {
       minLevel: 3,
       payments: [{ id: 'channel_divinity', label: '1 Channel Divinity', costs: [{ resource: 'channel_divinity', amount: 1 }] }],
       effect: { name: 'Peerless Athlete', duration: '1 hour' },
+      // TODO(rules): check the jump distance bonus against the 2024 text.
+      note: 'For 1 hour: Advantage on STR (Athletics) and DEX (Acrobatics) checks, and your jumps go 10 ft farther.',
     },
     {
       id: 'inspiring_smite',

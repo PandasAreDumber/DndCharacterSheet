@@ -23,10 +23,10 @@ export function RestButtons({ character }: { character: CharacterView }) {
 
   return (
     <section className="grid grid-cols-2 gap-2">
-      <button className="btn btn-outline" onClick={() => setOpen('short')}>
+      <button className="btn btn-outline btn-primary" onClick={() => setOpen('short')}>
         Short Rest
       </button>
-      <button className="btn btn-outline" onClick={() => setOpen('long')}>
+      <button className="btn btn-outline btn-primary" onClick={() => setOpen('long')}>
         Long Rest
       </button>
 

@@ -15,6 +15,7 @@ function build(speciesId: string, lineageId: string | null, level = 5, classId =
     level,
     abilities: { str: 16, dex: 10, con: 14, int: 8, wis: 12, cha: 16 },
     maxHp: 50,
+    ac: 14,
     spells: [],
     spellModifiers: [],
   }
@@ -150,5 +151,39 @@ describe('species features', () => {
   it('no species means no species features', () => {
     const b = { ...build('orc', null), speciesId: null }
     expect(getActions(b).some((a) => a.id.startsWith('species_'))).toBe(false)
+  })
+})
+
+describe('feature sources and descriptions', () => {
+  const find = (b: CharacterBuild, id: string) => getActions(b).find((a) => a.id === id)
+
+  it('tags each feature with the class, subclass or species it comes from', () => {
+    const b: CharacterBuild = {
+      ...build('dragonborn', 'red', 5),
+      spells: [{ name: 'Bless', level: 1, castingTime: 'action', concentration: true, ritual: false, upcast: true }],
+    }
+    expect(find(b, 'lay_on_hands')?.source).toEqual({ kind: 'class', name: 'Paladin' })
+    expect(find(b, 'spell:divine-smite')?.source).toEqual({ kind: 'class', name: 'Paladin' })
+    expect(find(b, 'peerless_athlete')?.source).toEqual({ kind: 'subclass', name: 'Oath of Glory' })
+    expect(find(b, 'spell:guiding-bolt')?.source).toEqual({ kind: 'subclass', name: 'Oath of Glory' })
+    // Lineage features show the species name.
+    expect(find(b, 'species_breath_weapon')?.source).toEqual({ kind: 'species', name: 'Dragonborn' })
+    expect(getPassives(b).find((p) => p.id === 'species_damage_resistance')?.source?.name).toBe('Dragonborn')
+    // Basic actions and spells the player added have no source.
+    expect(find(b, 'basic_dash')?.source).toBeUndefined()
+    expect(find(b, 'spell:bless')?.source).toBeUndefined()
+  })
+
+  it('every class, subclass and species action has a description', () => {
+    const combos: [string, string | null][] = ALL_SPECIES.flatMap((sp) =>
+      sp.lineages.length ? sp.lineages.map((l): [string, string | null] => [sp.id, l.id]) : [[sp.id, null]],
+    )
+    for (const [speciesId, lineageId] of combos) {
+      for (const classId of ['paladin', 'sorcerer']) {
+        const b = build(speciesId, lineageId, 10, classId)
+        const missing = getActions(b).filter((a) => a.source && !a.note).map((a) => a.name)
+        expect(missing, `${classId} / ${speciesId}`).toEqual([])
+      }
+    }
   })
 })

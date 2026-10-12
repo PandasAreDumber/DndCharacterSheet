@@ -168,6 +168,7 @@ export const sorcerer: ClassDef = {
         },
       ],
       effect: { name: 'Innate Sorcery', duration: '1 minute' },
+      note: 'For 1 minute: your Sorcerer spell save DC goes up by 1, and you have Advantage on attack rolls for Sorcerer spells you cast.',
     },
     {
       id: 'font_slot_to_points',
@@ -175,6 +176,7 @@ export const sorcerer: ClassDef = {
       economy: 'free',
       minLevel: 2,
       payments: slotToPoints,
+      note: 'No action needed. Spend a spell slot to gain Sorcery Points equal to its level.',
     },
     {
       id: 'font_points_to_slot',
@@ -182,7 +184,7 @@ export const sorcerer: ClassDef = {
       economy: 'bonus',
       minLevel: 2,
       payments: pointsToSlot,
-      note: 'Created slots vanish on a long rest.',
+      note: "Bonus Action. Spend Sorcery Points to create a spell slot (level 5 at most). Created slots vanish on a long rest.",
     },
   ],
   passives: [],

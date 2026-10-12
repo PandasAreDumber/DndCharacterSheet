@@ -21,9 +21,9 @@ function Pips({ r }: { r: ResourceView }) {
 
 export function ResourcePanel({ character }: { character: CharacterView }) {
   return (
-    <section className="card bg-base-200">
+    <section className="card bg-base-100 shadow-sm">
       <div className="card-body gap-3 p-4">
-        <h2 className="card-title">Resources</h2>
+        <h2 className="card-title text-primary">Resources</h2>
         <ul className="flex flex-col gap-3">
           {character.resources.map((r) => (
             <li key={r.id} className="flex items-center justify-between gap-3">
