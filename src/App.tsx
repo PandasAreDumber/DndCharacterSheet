@@ -24,6 +24,7 @@ function App() {
         <div>
           <h1 className="text-xl font-bold">{character.build.name}</h1>
           <p className="text-sm opacity-70">{character.title}</p>
+          {character.speciesLine && <p className="text-xs opacity-50">{character.speciesLine}</p>}
         </div>
         <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>
           Edit

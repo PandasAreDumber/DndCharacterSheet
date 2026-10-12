@@ -1,6 +1,6 @@
 // VIEWMODEL. Turns engine output into plain data the components can render directly.
 
-import { CLASSES, SUBCLASSES } from '../data/registry'
+import { CLASSES, SPECIES, SUBCLASSES } from '../data/registry'
 import { abilityMod } from '../rules/abilities'
 import {
   canAfford,
@@ -30,7 +30,8 @@ export type ResourceView = { id: string; name: string; kind: ResourceKind; curre
 export type CharacterView = {
   build: CharacterBuild
   state: CharacterState
-  title: string // "Level 5 Paladin (Oath of Glory)"
+  title: string // "Level 5 Orc Paladin (Oath of Glory)"
+  speciesLine: string | null // "Goliath, Storm Giant"
   resources: ResourceView[]
   passives: { id: string; name: string; text: string }[]
   actionsByEconomy: Record<Economy, ActionDef[]> // follow ups are not in here
@@ -46,6 +47,8 @@ export function viewCharacter(build: CharacterBuild, tracker: Tracker): Characte
   const state = currentState(build, tracker)
   const cls = getClass(build)
   const sub = build.subclassId ? SUBCLASSES[build.subclassId] : undefined
+  const species = build.speciesId ? SPECIES[build.speciesId] : undefined
+  const lineage = species?.lineages.find((l) => l.id === build.lineageId)
 
   const actionsByEconomy: Record<Economy, ActionDef[]> = { action: [], bonus: [], reaction: [], free: [] }
   const followUps: ActionDef[] = []
@@ -59,7 +62,8 @@ export function viewCharacter(build: CharacterBuild, tracker: Tracker): Characte
   return {
     build,
     state,
-    title: `Level ${build.level} ${cls.name}${sub && build.level >= 3 ? ` (${sub.name})` : ''}`,
+    title: `Level ${build.level} ${species ? `${species.name} ` : ''}${cls.name}${sub && build.level >= subclassLevel(cls.id) ? ` (${sub.name})` : ''}`,
+    speciesLine: lineage ? `${species?.lineageLabel ?? 'Lineage'}: ${lineage.name}` : null,
     resources: getResources(build).map((r) => ({
       id: r.id,
       name: r.name,
@@ -163,11 +167,22 @@ export function describeAction(
 
 export const classOptions = Object.values(CLASSES).map((c) => ({ id: c.id, name: c.name }))
 
+export function subclassLevel(classId: string): number {
+  return CLASSES[classId]?.subclassLevel ?? 3
+}
+
 export function subclassOptions(classId: string) {
   return Object.values(SUBCLASSES)
     .filter((s) => s.classId === classId)
     .map((s) => ({ id: s.id, name: s.name }))
 }
+
+export const speciesOptions = Object.values(SPECIES).map((s) => ({
+  id: s.id,
+  name: s.name,
+  lineageLabel: s.lineageLabel ?? 'Lineage',
+  lineages: s.lineages.map((l) => ({ id: l.id, name: l.name })),
+}))
 
 export function spellModifierOptions(classId: string) {
   const cls = CLASSES[classId]

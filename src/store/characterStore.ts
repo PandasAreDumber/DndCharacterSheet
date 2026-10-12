@@ -115,7 +115,15 @@ export const useCharacterStore = create<CharacterStore>()(
     }),
     {
       name: 'dnd-combat-tracker',
-      version: 1,
+      version: 2,
+      // Saves from older versions of the app get the fields they're missing.
+      migrate: (persisted, version) => {
+        const saved = persisted as { build: CharacterBuild | null; tracker: Tracker | null }
+        if (version < 2 && saved.build) {
+          saved.build = { ...saved.build, speciesId: null, lineageId: null }
+        }
+        return saved
+      },
       // Only the data is saved. Messages are temporary.
       partialize: (s) => ({ build: s.build, tracker: s.tracker }),
     },

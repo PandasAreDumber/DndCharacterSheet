@@ -20,6 +20,8 @@ export type CharacterBuild = {
   name: string
   classId: string
   subclassId: string | null
+  speciesId: string | null // 2024 "species" (was race)
+  lineageId: string | null // lineage / ancestry / legacy (was subrace)
   level: number
   abilities: AbilityScores
   maxHp: number // the one stored max
@@ -102,6 +104,10 @@ export type ActionDef = {
   basic?: boolean
   effect?: EffectDef
   spell?: Spell // set when this action is casting a spell
+  /** Gives the character this much temp HP (keeps the current temp HP if it's higher). */
+  tempHp?: Formula
+  /** Heals the character this much (capped at max HP). */
+  heal?: Formula
   note?: TextFormula
 }
 
@@ -144,6 +150,8 @@ export type ClassDef = FeatureSet & {
   id: string
   name: string
   hitDie: number
+  /** Class level where the subclass is picked. Every 2024 class picks at 3, so that's the default. */
+  subclassLevel?: number
   /** What this class calls its spell modifiers in the UI, e.g. "Metamagic". */
   spellModifierName?: string
   /** Row i = class level i + 1, column j = slots of level j + 1. */
@@ -154,6 +162,20 @@ export type SubclassDef = FeatureSet & {
   id: string
   classId: string
   name: string
+}
+
+/** A lineage, ancestry or legacy. Adds features on top of its species. */
+export type LineageDef = FeatureSet & {
+  id: string
+  name: string
+}
+
+export type SpeciesDef = FeatureSet & {
+  id: string
+  name: string
+  /** What the book calls the choice: "Lineage", "Draconic Ancestry", "Fiendish Legacy"... */
+  lineageLabel?: string
+  lineages: LineageDef[]
 }
 
 // ---------- State and events ----------
