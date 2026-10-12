@@ -83,6 +83,11 @@ export function viewCharacter(build: CharacterBuild, tracker: Tracker): Characte
   }
 }
 
+/** An action's note as plain text (some notes are formulas of the build). */
+export function actionNote(build: CharacterBuild, action: ActionDef): string {
+  return action.note === undefined ? '' : resolveText(action.note, build)
+}
+
 export type PaymentView = { id: string; label: string; ok: boolean; reason?: string; warnings: string[] }
 
 export type ActionView = {

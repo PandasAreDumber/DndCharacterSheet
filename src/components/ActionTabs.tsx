@@ -3,6 +3,7 @@ import type { CastingTime, Economy, Spell } from '../rules/types'
 import { useCharacterStore } from '../store/characterStore'
 import type { CharacterView } from '../store/selectors'
 import { ActionRow } from './ActionRow'
+import { BasicActionGrid } from './BasicActionGrid'
 import { SpellForm } from './SpellForm'
 
 const TABS: { id: Economy; label: string }[] = [
@@ -20,7 +21,9 @@ export function ActionTabs({ character }: { character: CharacterView }) {
   const addSpell = useCharacterStore((s) => s.addSpell)
   const [tab, setTab] = useState<Economy>('action')
   const [adding, setAdding] = useState(false)
-  const actions = character.actionsByEconomy[tab]
+  const all = character.actionsByEconomy[tab]
+  const basics = all.filter((a) => a.basic)
+  const actions = all.filter((a) => !a.basic)
 
   const onAdd = (spell: Spell) => {
     if (addSpell(spell)) {
@@ -44,8 +47,9 @@ export function ActionTabs({ character }: { character: CharacterView }) {
           </button>
         ))}
       </div>
+      <BasicActionGrid key={tab} character={character} actions={basics} />
       {actions.length === 0 ? (
-        <p className="text-center text-sm opacity-60">Nothing here yet.</p>
+        basics.length === 0 && <p className="text-center text-sm opacity-60">Nothing here yet.</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {actions.map((a) => (

@@ -1,5 +1,6 @@
 // Turns a CharacterBuild + class data into the resources, actions and passives the character has right now.
 
+import { BASIC_ACTIONS } from '../data/basicActions'
 import { CLASSES, SUBCLASSES } from '../data/registry'
 import type {
   ActionDef,
@@ -40,7 +41,8 @@ export function getClass(build: CharacterBuild): ClassDef {
 function featureSets(build: CharacterBuild): FeatureSet[] {
   const cls = getClass(build)
   const sub = build.subclassId ? SUBCLASSES[build.subclassId] : undefined
-  return sub && sub.classId === cls.id ? [cls, sub] : [cls]
+  // Everyone gets the basic actions, then class, then subclass.
+  return sub && sub.classId === cls.id ? [BASIC_ACTIONS, cls, sub] : [BASIC_ACTIONS, cls]
 }
 
 function slotResources(table: number[][]): ResourceDef[] {
