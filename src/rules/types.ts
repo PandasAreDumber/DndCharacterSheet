@@ -12,6 +12,10 @@ export type Spell = {
   concentration: boolean
   ritual: boolean
   upcast: boolean
+  /** How far it reaches, as written in the spell: "Self", "Touch", "60 ft", "Unlimited". Optional. */
+  range?: string
+  /** How long it lasts, without the word Concentration (that's the flag): "Instantaneous", "1 minute". Optional. */
+  duration?: string
   note?: string
 }
 

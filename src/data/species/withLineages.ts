@@ -103,24 +103,24 @@ export const elf: SpeciesDef = {
     spellLineage(
       'drow',
       'Drow',
-      spell('Dancing Lights', 0, { concentration: true }),
-      spell('Faerie Fire', 1, { concentration: true }),
-      spell('Darkness', 2, { concentration: true }),
+      spell('Dancing Lights', 0, { range: '120 ft', duration: '1 minute', concentration: true }),
+      spell('Faerie Fire', 1, { range: '60 ft', duration: '1 minute', concentration: true }),
+      spell('Darkness', 2, { range: '60 ft', duration: '10 minutes', concentration: true }),
       [passive('drow_darkvision', 'Superior Darkvision', 'Your Darkvision is 120 ft.')],
     ),
     spellLineage(
       'high_elf',
       'High Elf',
-      spell('Prestidigitation', 0, { note: 'You can swap this cantrip for another Wizard cantrip after a long rest.' }),
-      spell('Detect Magic', 1, { concentration: true, ritual: true }),
-      spell('Misty Step', 2, { castingTime: 'bonus' }),
+      spell('Prestidigitation', 0, { range: '10 ft', duration: 'Up to 1 hour', note: 'You can swap this cantrip for another Wizard cantrip after a long rest.' }),
+      spell('Detect Magic', 1, { range: 'Self', duration: '10 minutes', concentration: true, ritual: true }),
+      spell('Misty Step', 2, { range: 'Self', duration: 'Instantaneous', castingTime: 'bonus' }),
     ),
     spellLineage(
       'wood_elf',
       'Wood Elf',
-      spell('Druidcraft', 0),
-      spell('Longstrider', 1, { upcast: true }),
-      spell('Pass without Trace', 2, { concentration: true }),
+      spell('Druidcraft', 0, { range: '30 ft', duration: 'Instantaneous' }),
+      spell('Longstrider', 1, { range: 'Touch', duration: '1 hour', upcast: true }),
+      spell('Pass without Trace', 2, { range: 'Self', duration: '1 hour', concentration: true }),
       [passive('wood_elf_speed', 'Fleet of Foot', 'Your Speed is 35 ft.')],
     ),
   ],
@@ -147,9 +147,9 @@ export const gnome: SpeciesDef = {
       ...features({
         resources: [uses('species_speak_with_animals', 'Speak with Animals (free casts)', { max: PB })],
         grantedSpells: [
-          innateSpell(spell('Minor Illusion', 0), 1),
+          innateSpell(spell('Minor Illusion', 0, { range: '30 ft', duration: '1 minute' }), 1),
           innateSpell(
-            spell('Speak with Animals', 1, { ritual: true }),
+            spell('Speak with Animals', 1, { range: 'Self', duration: '10 minutes', ritual: true }),
             1,
             'species_speak_with_animals',
             'Free (Forest Gnome)',
@@ -162,8 +162,8 @@ export const gnome: SpeciesDef = {
       name: 'Rock Gnome',
       ...features({
         grantedSpells: [
-          innateSpell(spell('Mending', 0, { castingTime: 'other' }), 1),
-          innateSpell(spell('Prestidigitation', 0), 1),
+          innateSpell(spell('Mending', 0, { range: 'Touch', duration: 'Instantaneous', castingTime: 'other' }), 1),
+          innateSpell(spell('Prestidigitation', 0, { range: '10 ft', duration: 'Up to 1 hour' }), 1),
         ],
         passives: [
           passive(
@@ -280,30 +280,30 @@ export const tiefling: SpeciesDef = {
     spellLineage(
       'abyssal',
       'Abyssal',
-      spell('Poison Spray', 0),
-      spell('Ray of Sickness', 1, { upcast: true }),
-      spell('Hold Person', 2, { concentration: true, upcast: true }),
+      spell('Poison Spray', 0, { range: '30 ft', duration: 'Instantaneous' }),
+      spell('Ray of Sickness', 1, { range: '60 ft', duration: 'Instantaneous', upcast: true }),
+      spell('Hold Person', 2, { range: '60 ft', duration: '1 minute', concentration: true, upcast: true }),
       [passive('legacy_resistance', 'Resistance', 'Resistance to Poison damage.')],
     ),
     spellLineage(
       'chthonic',
       'Chthonic',
-      spell('Chill Touch', 0),
-      spell('False Life', 1, { upcast: true }),
-      spell('Ray of Enfeeblement', 2, { concentration: true }),
+      spell('Chill Touch', 0, { range: 'Touch', duration: 'Instantaneous' }),
+      spell('False Life', 1, { range: 'Self', duration: 'Instantaneous', upcast: true }),
+      spell('Ray of Enfeeblement', 2, { range: '60 ft', duration: '1 minute', concentration: true }),
       [passive('legacy_resistance', 'Resistance', 'Resistance to Necrotic damage.')],
     ),
     spellLineage(
       'infernal',
       'Infernal',
-      spell('Fire Bolt', 0),
-      spell('Hellish Rebuke', 1, { castingTime: 'reaction', upcast: true }),
-      spell('Darkness', 2, { concentration: true }),
+      spell('Fire Bolt', 0, { range: '120 ft', duration: 'Instantaneous' }),
+      spell('Hellish Rebuke', 1, { range: '60 ft', duration: 'Instantaneous', castingTime: 'reaction', upcast: true }),
+      spell('Darkness', 2, { range: '60 ft', duration: '10 minutes', concentration: true }),
       [passive('legacy_resistance', 'Resistance', 'Resistance to Fire damage.')],
     ),
   ],
   ...features({
-    grantedSpells: [innateSpell(spell('Thaumaturgy', 0), 1)],
+    grantedSpells: [innateSpell(spell('Thaumaturgy', 0, { range: '30 ft', duration: 'Up to 1 minute' }), 1)],
     passives: [passive('darkvision', 'Darkvision', '60 ft.')],
   }),
 }

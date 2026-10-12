@@ -398,6 +398,14 @@ describe('effects', () => {
     expect(s.effects.filter((e) => e.concentration).map((e) => e.name)).toEqual(['Bless'])
   })
 
+  it("a concentration spell's effect shows the spell's duration", () => {
+    const b: CharacterBuild = { ...paladin(3), spells: [spell('Bless', 1, { concentration: true })] }
+    const s = currentState(b, run(b, [cast('spell:heroism', 'slot_1'), { type: 'NEW_TURN' }, cast('spell:bless', 'slot_1')]))
+    expect(s.effects.map((e) => e.duration)).toEqual(['Concentration']) // Bless has no duration typed in
+    const h = currentState(b, run(b, [cast('spell:heroism', 'slot_1')]))
+    expect(h.effects.map((e) => e.duration)).toEqual(['Concentration, 1 minute'])
+  })
+
   it('effects get a resolved duration and can be ended', () => {
     const b = sorcerer(3)
     const t = run(b, [cast('telepathic_speech', 'free')])

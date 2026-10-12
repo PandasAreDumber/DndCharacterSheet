@@ -8,6 +8,10 @@ const CASTING_TIMES: { id: CastingTime; label: string }[] = [
   { id: 'other', label: 'Other' },
 ]
 
+// Quick picks for the range and duration boxes. Anything else (90 ft, Sight, 8 hours) can be typed in.
+const RANGES = ['Self', 'Touch', '30 ft', '60 ft', '120 ft']
+const DURATIONS = ['Instantaneous', '1 round', '1 minute', '10 minutes', '1 hour']
+
 const emptySpell = (castingTime: CastingTime): Spell => ({
   name: '',
   level: 1,
@@ -37,8 +41,16 @@ export function SpellForm({
   const add = () => {
     if (!canAdd) return
     const note = spell.note?.trim()
-    const { note: _drop, ...rest } = spell
-    onAdd({ ...rest, name: spell.name.trim(), ...(note ? { note } : {}) })
+    const range = spell.range?.trim()
+    const duration = spell.duration?.trim()
+    const { note: _note, range: _range, duration: _duration, ...rest } = spell
+    onAdd({
+      ...rest,
+      name: spell.name.trim(),
+      ...(range ? { range } : {}),
+      ...(duration ? { duration } : {}),
+      ...(note ? { note } : {}),
+    })
     setSpell(emptySpell(spell.castingTime)) // keep the casting time for adding several in a row
   }
 
@@ -83,6 +95,21 @@ export function SpellForm({
         ))}
       </div>
 
+      <QuickPick
+        label="Range"
+        options={RANGES}
+        value={spell.range ?? ''}
+        onChange={(range) => set({ range })}
+        onEnter={add}
+      />
+      <QuickPick
+        label="Duration"
+        options={DURATIONS}
+        value={spell.duration ?? ''}
+        onChange={(duration) => set({ duration })}
+        onEnter={add}
+      />
+
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
         {(['concentration', 'ritual', 'upcast'] as const).map((flag) => (
           <label key={flag} className="flex cursor-pointer items-center gap-2 capitalize">
@@ -109,6 +136,46 @@ export function SpellForm({
       <button type="button" className="btn btn-sm btn-secondary" onClick={add} disabled={!canAdd}>
         Add spell
       </button>
+    </div>
+  )
+}
+
+/** A row of quick-pick buttons plus a box for typing anything else. Tapping the picked button again clears it. */
+function QuickPick({
+  label,
+  options,
+  value,
+  onChange,
+  onEnter,
+}: {
+  label: string
+  options: string[]
+  value: string
+  onChange: (value: string) => void
+  onEnter: () => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={label}>
+      <span className="w-16 text-sm opacity-70">{label}</span>
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          aria-pressed={value === o}
+          className={`btn btn-xs ${value === o ? 'btn-neutral' : 'btn-ghost border-base-content/20'}`}
+          onClick={() => onChange(value === o ? '' : o)}
+        >
+          {o}
+        </button>
+      ))}
+      <input
+        className="input input-xs w-24"
+        placeholder="Other"
+        aria-label={`Spell ${label.toLowerCase()}`}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && onEnter()}
+      />
     </div>
   )
 }

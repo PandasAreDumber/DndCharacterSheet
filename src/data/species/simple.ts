@@ -44,7 +44,7 @@ export const aasimar: SpeciesDef = {
       passive('celestial_resistance', 'Celestial Resistance', 'Resistance to Necrotic and Radiant damage.'),
       passive('darkvision', 'Darkvision', '60 ft.'),
     ],
-    grantedSpells: [innateSpell(spell('Light', 0), 1)],
+    grantedSpells: [innateSpell(spell('Light', 0, { range: 'Touch', duration: '1 hour' }), 1)],
   }),
 }
 
