@@ -7,6 +7,7 @@ import type {
   ActionDef,
   CastingTime,
   CharacterBuild,
+  EffectDef,
   CharacterState,
   ClassDef,
   FeatureSource,
@@ -125,6 +126,26 @@ function economyFor(castingTime: CastingTime): Economy {
   return castingTime === 'other' ? 'free' : castingTime
 }
 
+// Durations too short to be worth tracking in the Active effects list.
+const SHORT_DURATIONS = new Set(['instantaneous', '1 round'])
+
+/**
+ * The Active effect a spell starts: every concentration spell, plus any other spell that lasts
+ * longer than a round (Magic Weapon, Longstrider). Instant spells like Fire Bolt start nothing.
+ */
+export function spellEffect(spell: Spell): EffectDef | undefined {
+  if (spell.concentration) {
+    return {
+      name: spell.name,
+      duration: spell.duration ? `Concentration, ${spell.duration}` : 'Concentration',
+      concentration: true,
+    }
+  }
+  const duration = spell.duration?.trim()
+  if (!duration || SHORT_DURATIONS.has(duration.toLowerCase())) return undefined
+  return { name: spell.name, duration }
+}
+
 function spellAction(
   build: CharacterBuild,
   spell: Spell,
@@ -143,21 +164,14 @@ function spellAction(
             castLevel: r.slotLevel,
           }))
   const finalNote = note ?? spell.note ?? SPELL_SUMMARIES[spell.name.toLowerCase()]
+  const effect = spellEffect(spell)
   return {
     id: spellActionId(spell.name),
     name: spell.name,
     economy: economyFor(spell.castingTime),
     payments: [...payments, ...extraPayments],
     spell,
-    ...(spell.concentration
-      ? {
-          effect: {
-            name: spell.name,
-            duration: spell.duration ? `Concentration, ${spell.duration}` : 'Concentration',
-            concentration: true,
-          },
-        }
-      : {}),
+    ...(effect ? { effect } : {}),
     ...(finalNote !== undefined ? { note: finalNote } : {}),
   }
 }
