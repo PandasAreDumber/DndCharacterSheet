@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { ActionTabs } from './components/ActionTabs'
+import { CharacterList } from './components/CharacterList'
 import { AfterCastPrompt } from './components/AfterCastPrompt'
 import { EffectsPanel } from './components/EffectsPanel'
 import { HpPanel } from './components/HpPanel'
@@ -14,16 +15,25 @@ import { SiteHeader } from './components/SiteHeader'
 import { TurnTracker } from './components/TurnTracker'
 import { useCharacter } from './store/useCharacter'
 import { useAccountStore } from './store/cloudSync'
+import { useCharacterStore } from './store/characterStore'
 
-type Page = 'tracker' | 'settings'
+type Page = 'characters' | 'tracker' | 'settings' | 'create' | 'edit'
 
 function App() {
+  const uid = useAccountStore((s) => s.uid)
+  // An account change must also discard drafts, open dialogs, and the previous selection's page.
+  return <AccountApp key={uid ?? 'guest'} />
+}
+
+function AccountApp() {
   const character = useCharacter()
   const accountReady = useAccountStore((s) => s.ready)
-  const uid = useAccountStore((s) => s.uid)
-  const [editingFor, setEditingFor] = useState<string | null>(null)
-  const [page, setPage] = useState<Page>('tracker')
-  const editing = editingFor === (uid ?? 'guest')
+  const activeId = useCharacterStore((s) => s.activeId)
+  const [page, setPage] = useState<Page>('characters')
+  const [settingsBack, setSettingsBack] = useState<Page>('characters')
+  const openCharacter = (id: string) => {
+    if (useCharacterStore.getState().selectCharacter(id)) setPage('tracker')
+  }
   // Full-width header on top. Below it, the middle column gets its own background;
   // the page edges keep the theme's base color.
   const shell = (content: ReactNode) => (
@@ -35,33 +45,48 @@ function App() {
 
   const header = (
     <SiteHeader
-      character={accountReady ? character : null}
-      onHome={() => setPage('tracker')}
-      onSettings={() => setPage('settings')}
+      character={accountReady && page !== 'characters' && page !== 'create' ? character : null}
+      onHome={() => setPage(character && page !== 'characters' && page !== 'create' ? 'tracker' : 'characters')}
+      onCharacters={() => setPage('characters')}
+      onSettings={() => { setSettingsBack(page === 'tracker' ? 'tracker' : 'characters'); setPage('settings') }}
       onSettingsPage={page === 'settings'}
     />
   )
 
   if (!accountReady) {
-    return shell(<main className="p-8 text-center text-sm opacity-70">Loading your character…</main>)
+    return shell(<main className="p-8 text-center text-sm opacity-70">Loading your characters…</main>)
   }
 
   if (page === 'settings') {
-    return shell(<SettingsPage onBack={() => setPage('tracker')} />)
+    return shell(<SettingsPage onBack={() => setPage(settingsBack)} />)
   }
 
-  if (!character || editing) {
-    return shell(<SetupForm key={uid ?? 'guest'} initial={character?.build ?? null} onDone={() => setEditingFor(null)} />)
+  if (page === 'create' || (page === 'edit' && character)) {
+    return shell(<SetupForm
+      key={page === 'create' ? 'new' : activeId}
+      initial={page === 'edit' ? character!.build : null}
+      onSave={(build) => {
+        const store = useCharacterStore.getState()
+        if (page === 'create') store.createCharacter(build)
+        else store.saveBuild(build)
+      }}
+      onDone={() => setPage(useCharacterStore.getState().activeId ? 'tracker' : 'characters')}
+      onCancel={() => setPage(page === 'edit' ? 'tracker' : 'characters')}
+    />)
+  }
+
+  if (page === 'characters' || !character) {
+    return shell(<CharacterList onSelect={openCharacter} onCreate={() => setPage('create')} />)
   }
 
   return shell(
-    <main className="mx-auto flex max-w-xl flex-col gap-4 px-4 pb-24">
+    <main key={activeId} className="mx-auto flex max-w-xl flex-col gap-4 px-4 pb-24">
       <div className="flex items-center justify-between pt-4">
         <div>
           <p className="text-sm opacity-70">{character.title}</p>
           {character.speciesLine && <p className="text-xs opacity-50">{character.speciesLine}</p>}
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={() => setEditingFor(uid ?? 'guest')}>
+        <button className="btn btn-ghost btn-sm" onClick={() => setPage('edit')}>
           Edit
         </button>
       </div>

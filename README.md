@@ -1,6 +1,6 @@
 # D&D Combat Tracker
 
-A React and TypeScript character and combat tracker. Character data stays in the browser for guest play. Google sign-in can also save one character per account in Cloud Firestore.
+A React and TypeScript character and combat tracker. Players can create multiple characters and choose one from the **Your characters** front page. Use **Characters** in the header to switch characters; each has its own combat state, spells, resources, and undo history. Character data stays in the browser for guest play. Google sign-in saves the account's characters in Cloud Firestore.
 
 ## Run locally
 
@@ -29,7 +29,11 @@ In the Vercel project, open **Settings → Environment Variables** and add the f
 
 Keep Google sign-in, the Firestore database, and the published security rules in the Firebase project. Add your Vercel site's domain to **Firebase Authentication → Settings → Authorized domains**. Do not put a Firebase service-account key into this client-side app or any `VITE_` variable.
 
-The app stores account data at `users/{uid}/characters/main`. On a player's first sign-in, if that account has no cloud character, an existing guest character is saved to it; the guest copy is removed after the cloud save succeeds. Each account also has a separate browser save. If Firestore cannot be reached, account changes remain in that browser and can be retried in Settings or when the connection returns. If the same account is edited on two devices while one is offline, the later upload wins.
+The app stores each character at `users/{uid}/characters/{characterId}` using a generated ID. Each document contains `schemaVersion`, `build`, `tracker`, and `updatedAt`. Existing `main` documents appear in the roster automatically; previous single-character browser saves migrate to a roster with the same `main` ID. No manual data migration is needed, and the existing owner-only Firestore rules already cover the collection.
+
+On first sign-in to an empty account, all existing guest characters are copied to that account. The guest roster remains as a local backup, separate from subsequent account edits. Existing accounts are never overwritten by guest data. Each account has a separate browser roster with pending changes tracked per character. If Firestore cannot be reached, changes remain in that browser and can be retried from the front page, Settings, or when the connection returns. If the same character is edited on two devices while one is offline, the later upload wins. Different characters sync independently. Cloud data is refreshed on sign-in, reload, and retry; there is no live cross-device subscription.
+
+Deleting a character clears its build and tracker and keeps an empty document as a deletion marker, so a clean cached copy on another device does not bring it back. Offline edits to that same character still follow the later-upload-wins policy. Creating or canceling a new character never replaces the selected character.
 
 Without Firebase values, the app still works as a local-only tracker.
 
