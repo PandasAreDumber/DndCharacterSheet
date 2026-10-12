@@ -9,6 +9,7 @@ This is a **tracker, not a character builder**. The player types in their level,
 ## Tech stack
 
 * Vite + React + TypeScript (strict mode)
+* Daisy Ui + Tailwind css
 * Zustand for state, using its `persist` middleware for localStorage
 * Vitest for tests
 * Supabase (auth + Postgres) added LATER, in phase 4. Do not add it before then.
