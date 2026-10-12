@@ -33,7 +33,9 @@ export type CharacterView = {
   title: string // "Level 5 Paladin (Oath of Glory)"
   resources: ResourceView[]
   passives: { id: string; name: string; text: string }[]
-  actionsByEconomy: Record<Economy, ActionDef[]>
+  actionsByEconomy: Record<Economy, ActionDef[]> // follow ups are not in here
+  followUps: ActionDef[] // unlocked by the last action, shown as a prompt
+  concentration: string | null // name of the effect being concentrated on
   spellModifiers: SpellModifierDef[]
   spellModifierName: string
   hitDice: { current: number; max: number; die: number; conMod: number }
@@ -46,10 +48,12 @@ export function viewCharacter(build: CharacterBuild, tracker: Tracker): Characte
   const sub = build.subclassId ? SUBCLASSES[build.subclassId] : undefined
 
   const actionsByEconomy: Record<Economy, ActionDef[]> = { action: [], bonus: [], reaction: [], free: [] }
+  const followUps: ActionDef[] = []
   for (const a of getActions(build)) {
-    // Follow ups only show up right after their trigger.
-    if (a.after && !state.turn.followUps.includes(a.id)) continue
-    actionsByEconomy[a.economy].push(a)
+    if (!a.after) actionsByEconomy[a.economy].push(a)
+    // Only prompt for follow ups the player can actually pay for.
+    else if (state.turn.followUps.includes(a.id) && a.payments.some((p) => canAfford(build, state, p.costs)))
+      followUps.push(a)
   }
 
   return {
@@ -65,6 +69,8 @@ export function viewCharacter(build: CharacterBuild, tracker: Tracker): Characte
     })),
     passives: getPassives(build).map((p) => ({ id: p.id, name: p.name, text: resolveText(p.text, build) })),
     actionsByEconomy,
+    followUps,
+    concentration: state.effects.find((e) => e.concentration)?.name ?? null,
     spellModifiers: getSpellModifiers(build),
     spellModifierName: cls.spellModifierName ?? 'Spell options',
     hitDice: {
@@ -77,7 +83,7 @@ export function viewCharacter(build: CharacterBuild, tracker: Tracker): Characte
   }
 }
 
-export type PaymentView = { id: string; label: string; ok: boolean; reason?: string }
+export type PaymentView = { id: string; label: string; ok: boolean; reason?: string; warnings: string[] }
 
 export type ActionView = {
   id: string
@@ -117,7 +123,9 @@ export function describeAction(
       spellModifiers: choice.spellModifiers,
       ...(variable ? { amount: choice.amount ?? variable.min } : {}),
     })
-    return check.ok ? { id: p.id, label: p.label, ok: true } : { id: p.id, label: p.label, ok: false, reason: check.reason }
+    return check.ok
+      ? { id: p.id, label: p.label, ok: true, warnings: check.warnings }
+      : { id: p.id, label: p.label, ok: false, reason: check.reason, warnings: [] }
   })
 
   const spellModifiers = action.spell

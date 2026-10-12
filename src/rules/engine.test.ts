@@ -253,6 +253,14 @@ describe('paladin features', () => {
     expect(dispatch(b, afterOther, inspiring).ok).toBe(false)
   })
 
+  it('skipping a follow up removes it, and undo brings it back', () => {
+    const b = paladin(3)
+    const t = run(b, [cast('spell:divine-smite', 'free_use'), { type: 'DISMISS_FOLLOW_UPS' }])
+    expect(currentState(b, t).turn.followUps).toEqual([])
+    expect(currentState(b, undo(t)).turn.followUps).toEqual(['inspiring_smite'])
+    expect(dispatch(b, t, { type: 'DISMISS_FOLLOW_UPS' }).ok).toBe(false)
+  })
+
   it("free Divine Smite doesn't spend a slot, so a slotted spell is still allowed", () => {
     const b: CharacterBuild = { ...paladin(3), spells: [spell('Bless', 1, { concentration: true })] }
     const t = run(b, [cast('spell:divine-smite', 'free_use'), cast('spell:bless', 'slot_1')])

@@ -224,6 +224,8 @@ export function checkEvent(build: CharacterBuild, state: CharacterState, ev: Gam
       return isNonNegInt(ev.amount) ? ok() : fail('Amount must be a whole number')
     case 'END_EFFECT':
       return state.effects.some((e) => e.id === ev.effectId) ? ok() : fail('No such effect')
+    case 'DISMISS_FOLLOW_UPS':
+      return state.turn.followUps.length > 0 ? ok() : fail('Nothing to skip')
     case 'NEW_TURN':
     case 'LONG_REST':
       return ok()
@@ -238,6 +240,8 @@ export function applyEvent(build: CharacterBuild, state: CharacterState, ev: Gam
       return applyPerform(build, state, ev)
     case 'USE_ECONOMY':
       return { ...cleared, turn: { ...cleared.turn, [ev.economy]: true } }
+    case 'DISMISS_FOLLOW_UPS':
+      return cleared
     case 'NEW_TURN':
       return { ...state, turn: freshTurn() }
     case 'SHORT_REST': {

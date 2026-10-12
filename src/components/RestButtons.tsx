@@ -1,18 +1,7 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useCharacterStore } from '../store/characterStore'
 import type { CharacterView } from '../store/selectors'
-
-function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
-  return (
-    <div className="modal modal-open modal-bottom sm:modal-middle" role="dialog" aria-modal="true">
-      <div className="modal-box">
-        <h3 className="text-lg font-bold">{title}</h3>
-        {children}
-      </div>
-      <div className="modal-backdrop" onClick={onClose} />
-    </div>
-  )
-}
+import { Modal } from './Modal'
 
 export function RestButtons({ character }: { character: CharacterView }) {
   const shortRest = useCharacterStore((s) => s.shortRest)
