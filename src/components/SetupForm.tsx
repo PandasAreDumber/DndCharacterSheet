@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { AbilityName, CharacterBuild, Spell } from '../rules/types'
 import { useCharacterStore } from '../store/characterStore'
-import { classOptions, spellModifierOptions, subclassOptions } from '../store/selectors'
+import { classOptions, speciesOptions, spellModifierOptions, subclassLevel, subclassOptions } from '../store/selectors'
 import { SpellForm } from './SpellForm'
 
 const ABILITIES: { id: AbilityName; label: string }[] = [
@@ -18,6 +18,8 @@ type Draft = {
   name: string
   classId: string
   subclassId: string
+  speciesId: string
+  lineageId: string
   level: string
   maxHp: string
   abilities: Record<AbilityName, string>
@@ -32,7 +34,9 @@ function toDraft(b: CharacterBuild | null): Draft {
     return {
       name: '',
       classId: firstClass,
-      subclassId: subclassOptions(firstClass)[0]?.id ?? '',
+      subclassId: '',
+      speciesId: '',
+      lineageId: '',
       level: '1',
       maxHp: '',
       abilities: { str: '10', dex: '10', con: '10', int: '10', wis: '10', cha: '10' },
@@ -44,6 +48,8 @@ function toDraft(b: CharacterBuild | null): Draft {
     name: b.name,
     classId: b.classId,
     subclassId: b.subclassId ?? '',
+    speciesId: b.speciesId ?? '',
+    lineageId: b.lineageId ?? '',
     level: String(b.level),
     maxHp: String(b.maxHp),
     abilities: Object.fromEntries(ABILITIES.map((a) => [a.id, String(b.abilities[a.id])])) as Record<AbilityName, string>,
@@ -63,6 +69,11 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
   const update = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }))
   const subclasses = subclassOptions(draft.classId)
   const modifiers = spellModifierOptions(draft.classId)
+  const species = speciesOptions.find((s) => s.id === draft.speciesId)
+  const hasLineage = !!species && species.lineages.length > 0
+  const pickSubclassAt = subclassLevel(draft.classId)
+  const level = toInt(draft.level)
+  const subclassUnlocked = Number.isInteger(level) && level >= pickSubclassAt
 
   const errors: string[] = []
   if (!inRange(toInt(draft.level), 1, 10)) errors.push('Level must be 1 to 10.')
@@ -75,6 +86,8 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
       name: draft.name.trim() || 'Adventurer',
       classId: draft.classId,
       subclassId: draft.subclassId || null,
+      speciesId: draft.speciesId || null,
+      lineageId: draft.lineageId || null,
       level: toInt(draft.level),
       maxHp: toInt(draft.maxHp),
       abilities: Object.fromEntries(ABILITIES.map((a) => [a.id, toInt(draft.abilities[a.id])])) as Record<
@@ -110,7 +123,8 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
             onChange={(e) =>
               update({
                 classId: e.target.value,
-                subclassId: subclassOptions(e.target.value)[0]?.id ?? '',
+                // Changing class clears the subclass; pick again once it unlocks.
+                subclassId: '',
                 spellModifiers: [],
               })
             }
@@ -129,14 +143,55 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
             value={draft.subclassId}
             onChange={(e) => update({ subclassId: e.target.value })}
           >
-            <option value="">None</option>
+            <option value="">{subclassUnlocked ? 'None' : 'Not yet'}</option>
             {subclasses.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
               </option>
             ))}
           </select>
+          {!subclassUnlocked ? (
+            <p className="label text-xs">Optional until level {pickSubclassAt}</p>
+          ) : (
+            !draft.subclassId && <p className="label text-xs text-warning">Pick your subclass</p>
+          )}
         </fieldset>
+        <fieldset className={`fieldset ${hasLineage ? '' : 'col-span-2'}`}>
+          <legend className="fieldset-legend">Species</legend>
+          <select
+            className="select w-full"
+            value={draft.speciesId}
+            onChange={(e) =>
+              update({
+                speciesId: e.target.value,
+                lineageId: speciesOptions.find((s) => s.id === e.target.value)?.lineages[0]?.id ?? '',
+              })
+            }
+          >
+            <option value="">None</option>
+            {speciesOptions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </fieldset>
+        {species && hasLineage && (
+          <fieldset className="fieldset">
+            <legend className="fieldset-legend">{species.lineageLabel}</legend>
+            <select
+              className="select w-full"
+              value={draft.lineageId}
+              onChange={(e) => update({ lineageId: e.target.value })}
+            >
+              {species.lineages.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </fieldset>
+        )}
         <fieldset className="fieldset">
           <legend className="fieldset-legend">Level</legend>
           <input

@@ -1,7 +1,7 @@
 // Turns a CharacterBuild + class data into the resources, actions and passives the character has right now.
 
 import { BASIC_ACTIONS } from '../data/basicActions'
-import { CLASSES, SUBCLASSES } from '../data/registry'
+import { CLASSES, SPECIES, SUBCLASSES } from '../data/registry'
 import type {
   ActionDef,
   CastingTime,
@@ -41,8 +41,17 @@ export function getClass(build: CharacterBuild): ClassDef {
 function featureSets(build: CharacterBuild): FeatureSet[] {
   const cls = getClass(build)
   const sub = build.subclassId ? SUBCLASSES[build.subclassId] : undefined
-  // Everyone gets the basic actions, then class, then subclass.
-  return sub && sub.classId === cls.id ? [BASIC_ACTIONS, cls, sub] : [BASIC_ACTIONS, cls]
+  const species = build.speciesId ? SPECIES[build.speciesId] : undefined
+  const lineage = species?.lineages.find((l) => l.id === build.lineageId)
+  // Everyone gets the basic actions, then class, subclass, species and lineage.
+  const sets: (FeatureSet | undefined)[] = [
+    BASIC_ACTIONS,
+    cls,
+    sub && sub.classId === cls.id ? sub : undefined,
+    species,
+    lineage,
+  ]
+  return sets.filter((s): s is FeatureSet => !!s)
 }
 
 function slotResources(table: number[][]): ResourceDef[] {

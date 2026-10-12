@@ -170,7 +170,11 @@ function applyPerform(build: CharacterBuild, state: CharacterState, ev: PerformE
     })
   }
 
-  return { ...state, expended, turn, effects, nextEffectId }
+  const hp = { ...state.hp }
+  if (action.tempHp) hp.temp = Math.max(hp.temp, action.tempHp(build))
+  if (action.heal) hp.current = Math.min(build.maxHp, hp.current + action.heal(build))
+
+  return { ...state, expended, hp, turn, effects, nextEffectId }
 }
 
 // ---------- Rests ----------
