@@ -240,7 +240,10 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
       {modifiers.options.length > 0 && (
         <fieldset className="fieldset">
           <legend className="fieldset-legend">{modifiers.name}</legend>
-          <div className="grid grid-cols-2 gap-1">
+          {modifiers.unlockLevel > level && (
+            <p className="label text-xs">You can use these from level {modifiers.unlockLevel}</p>
+          )}
+          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
             {modifiers.options.map((m) => (
               <label key={m.id} className="flex cursor-pointer items-center gap-2 text-sm">
                 <input
@@ -259,6 +262,17 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
               </label>
             ))}
           </div>
+          <details className="text-sm">
+            <summary className="cursor-pointer text-xs opacity-60">What do these do?</summary>
+            <dl className="mt-2 flex flex-col gap-2">
+              {modifiers.options.map((m) => (
+                <div key={m.id}>
+                  <dt className="inline font-semibold">{m.name}. </dt>
+                  <dd className="inline opacity-80">{m.description}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
         </fieldset>
       )}
 

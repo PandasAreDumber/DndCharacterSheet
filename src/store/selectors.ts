@@ -5,12 +5,14 @@ import { abilityMod } from '../rules/abilities'
 import {
   canAfford,
   currentOf,
+  getAction,
   getActions,
   getClass,
   getPassives,
   getResource,
   getResources,
   getSpellModifiers,
+  modifierProblem,
   resolveText,
 } from '../rules/character'
 import { checkEvent, currentState } from '../rules/engine'
@@ -37,8 +39,10 @@ export type CharacterView = {
   actionsByEconomy: Record<Economy, ActionDef[]> // follow ups are not in here
   followUps: ActionDef[] // unlocked by the last action, shown as a prompt
   concentration: string | null // name of the effect being concentrated on
-  spellModifiers: SpellModifierDef[]
+  spellModifiers: ModifierView[] // the ones the player picked and has the level for
   spellModifierName: string
+  /** Right after a spell: modifiers the player can still use on it (Seeking Spell). Null if none. */
+  afterCast: { spellName: string; modifiers: ModifierView[] } | null
   hitDice: { current: number; max: number; die: number; conMod: number }
   canUndo: boolean
 }
@@ -75,8 +79,9 @@ export function viewCharacter(build: CharacterBuild, tracker: Tracker): Characte
     actionsByEconomy,
     followUps,
     concentration: state.effects.find((e) => e.concentration)?.name ?? null,
-    spellModifiers: getSpellModifiers(build),
+    spellModifiers: getSpellModifiers(build).map(modifierView),
     spellModifierName: cls.spellModifierName ?? 'Spell options',
+    afterCast: afterCastView(build, state),
     hitDice: {
       current: currentOf(build, state, 'hit_dice'),
       max: getResource(build, 'hit_dice')?.max(build) ?? 0,
@@ -92,6 +97,23 @@ export function actionNote(build: CharacterBuild, action: ActionDef): string {
   return action.note === undefined ? '' : resolveText(action.note, build)
 }
 
+/** A spell modifier (Metamagic option) ready to show, with its info popup text. */
+export type ModifierView = { id: string; name: string; cost: string; description?: string; minLevel: number }
+
+function modifierView(m: SpellModifierDef): ModifierView {
+  const cost = m.costs.map((c) => c.amount).join(' + ')
+  return { id: m.id, name: m.name, cost, minLevel: m.minLevel, ...(m.description ? { description: m.description } : {}) }
+}
+
+function afterCastView(build: CharacterBuild, state: CharacterState): CharacterView['afterCast'] {
+  const spell = state.turn.lastSpell ? getAction(build, state.turn.lastSpell) : undefined
+  if (!spell) return null
+  const modifiers = getSpellModifiers(build)
+    .filter((m) => m.afterCast && checkEvent(build, state, { type: 'AFTER_CAST_MODIFIER', modifierId: m.id }).ok)
+    .map(modifierView)
+  return modifiers.length ? { spellName: spell.name, modifiers } : null
+}
+
 export type PaymentView = { id: string; label: string; ok: boolean; reason?: string; warnings: string[] }
 
 export type ActionView = {
@@ -101,7 +123,7 @@ export type ActionView = {
   spell?: Spell
   isFollowUp: boolean
   payments: PaymentView[] // only ones you can still afford
-  spellModifiers: { id: string; label: string }[] // ones that can apply to this action
+  spellModifiers: ModifierView[] // ones that can apply to this action
   variable?: { resourceName: string; min: number; max: number }
   available: boolean
   reason?: string // why nothing is available
@@ -139,8 +161,8 @@ export function describeAction(
 
   const spellModifiers = action.spell
     ? getSpellModifiers(build)
-        .filter((m) => !m.economyChange || m.economyChange.from === action.economy)
-        .map((m) => ({ id: m.id, label: `${m.name} (${m.costs.map((c) => c.amount).join('+')})` }))
+        .filter((m) => !m.afterCast && !modifierProblem(m, action))
+        .map(modifierView)
     : []
 
   const firstBlocked = payments.find((p) => !p.ok)
@@ -188,10 +210,7 @@ export function spellModifierOptions(classId: string) {
   const cls = CLASSES[classId]
   return {
     name: cls?.spellModifierName ?? 'Spell options',
-    options: (cls?.spellModifiers ?? []).map((m) => ({
-      id: m.id,
-      name: m.name,
-      cost: m.costs.map((c) => c.amount).join(' + '),
-    })),
+    options: (cls?.spellModifiers ?? []).map(modifierView),
+    unlockLevel: Math.min(...(cls?.spellModifiers ?? []).map((m) => m.minLevel)),
   }
 }

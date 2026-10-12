@@ -37,6 +37,8 @@ type CharacterStore = {
   setTempHp: (amount: number) => boolean
   endEffect: (effectId: number) => boolean
   dismissFollowUps: () => void
+  applyAfterCast: (modifierId: string) => boolean
+  skipAfterCast: () => void
   undo: () => void
   clearMessage: () => void
 }
@@ -106,6 +108,10 @@ export const useCharacterStore = create<CharacterStore>()(
       endEffect: (effectId) => get().send({ type: 'END_EFFECT', effectId }),
       dismissFollowUps: () => {
         get().send({ type: 'DISMISS_FOLLOW_UPS' })
+      },
+      applyAfterCast: (modifierId) => get().send({ type: 'AFTER_CAST_MODIFIER', modifierId }),
+      skipAfterCast: () => {
+        get().send({ type: 'SKIP_AFTER_CAST' })
       },
       undo: () => {
         const { tracker } = get()

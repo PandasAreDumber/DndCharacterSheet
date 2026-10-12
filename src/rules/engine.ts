@@ -1,7 +1,17 @@
 // The rules engine. Pure functions: (build, state, event) -> new state.
 // Every state change is an event in a log, so undo is just dropping the last event.
 
-import { canAfford, currentOf, getAction, getActions, getResource, getResources, getSpellModifiers, resolveText } from './character'
+import {
+  canAfford,
+  currentOf,
+  getAction,
+  getActions,
+  getResource,
+  getResources,
+  getSpellModifiers,
+  modifierProblem,
+  resolveText,
+} from './character'
 import type {
   ActionDef,
   CharacterBuild,
@@ -37,7 +47,16 @@ export function initialState(build: CharacterBuild): CharacterState {
 }
 
 function freshTurn(): CharacterState['turn'] {
-  return { action: false, bonus: false, reaction: false, slotSpellCast: false, followUps: [] }
+  return {
+    action: false,
+    bonus: false,
+    reaction: false,
+    slotSpellCast: false,
+    leveledSpellCast: false,
+    leveledSpellsLocked: false,
+    lastSpell: null,
+    followUps: [],
+  }
 }
 
 export function newTracker(build: CharacterBuild): Tracker {
@@ -53,6 +72,8 @@ type ResolvedPerform = {
   economy: Economy
   costs: Cost[]
   usesSlot: boolean
+  leveled: boolean // a level 1+ spell
+  locks: boolean // locks out level 1+ spells for the rest of the turn
 }
 
 /** Works out everything about a PERFORM_ACTION, or why it isn't allowed. */
@@ -81,19 +102,26 @@ function resolvePerform(
   for (const id of ev.spellModifiers ?? []) {
     const m = known.find((k) => k.id === id)
     if (!m) return no(`Unknown spell modifier: ${id}`)
-    if (!action.spell) return no(`${m.name} only works on spells`)
+    const problem = modifierProblem(m, action)
+    if (problem) return no(problem)
+    if (m.afterCast) return no(`${m.name} is used after the spell is cast`)
+    if (modifiers.includes(m)) return no(`${m.name} picked twice`)
     modifiers.push(m)
   }
   if (modifiers.filter((m) => !m.combinable).length > 1) return no('Only one of those per spell')
 
   let economy = action.economy
-  for (const m of modifiers) {
-    if (m.economyChange) {
-      if (m.economyChange.from !== economy) return no(`${m.name} doesn't apply to this spell`)
-      economy = m.economyChange.to
-    }
-  }
+  for (const m of modifiers) if (m.economyChange) economy = m.economyChange.to
   if (economy !== 'free' && state.turn[economy]) return no(`${ECONOMY_LABEL[economy]} already used`)
+
+  // Quickened Spell: no other level 1+ spells on the same turn, before or after.
+  // TODO(rules): like the one-slot rule, reaction spells skip this since they may be on another creature's turn.
+  const leveled = !!action.spell && action.spell.level > 0
+  const locks = modifiers.find((m) => m.locksLeveledSpells)
+  if (economy !== 'reaction') {
+    if (leveled && state.turn.leveledSpellsLocked) return no('Used Quickened Spell this turn: no more level 1+ spells')
+    if (locks && state.turn.leveledSpellCast) return no(`Already cast a level 1+ spell this turn, can't use ${locks.name}`)
+  }
 
   // 2024: only one spell slot spent on spells per turn.
   const usesSlot = !!action.spell && payment.costs.some((c) => getResource(build, c.resource)?.kind === 'spellSlot')
@@ -120,7 +148,7 @@ function resolvePerform(
     if (!getResource(build, g.resource)) return no(`You don't have ${g.resource}`)
   }
 
-  return { ok: true, value: { action, payment, modifiers, economy, costs, usesSlot } }
+  return { ok: true, value: { action, payment, modifiers, economy, costs, usesSlot, leveled, locks: !!locks } }
 }
 
 function checkPerform(build: CharacterBuild, state: CharacterState, ev: PerformEvent): Check {
@@ -137,7 +165,7 @@ function checkPerform(build: CharacterBuild, state: CharacterState, ev: PerformE
 function applyPerform(build: CharacterBuild, state: CharacterState, ev: PerformEvent): CharacterState {
   const r = resolvePerform(build, state, ev)
   if (!r.ok) throw new Error(r.reason)
-  const { action, payment, economy, costs, usesSlot } = r.value
+  const { action, payment, economy, costs, usesSlot, leveled, locks } = r.value
 
   const expended = { ...state.expended }
   for (const c of costs) expended[c.resource] = (expended[c.resource] ?? 0) + c.amount
@@ -150,6 +178,9 @@ function applyPerform(build: CharacterBuild, state: CharacterState, ev: PerformE
   const turn = { ...state.turn }
   if (economy !== 'free') turn[economy] = true
   if (usesSlot) turn.slotSpellCast = true
+  if (leveled && economy !== 'reaction') turn.leveledSpellCast = true
+  if (locks) turn.leveledSpellsLocked = true
+  turn.lastSpell = action.spell ? action.id : null
   turn.followUps = getActions(build)
     .filter((a) => a.after === action.id)
     .map((a) => a.id)
@@ -175,6 +206,32 @@ function applyPerform(build: CharacterBuild, state: CharacterState, ev: PerformE
   if (action.heal) hp.current = Math.min(build.maxHp, hp.current + action.heal(build))
 
   return { ...state, expended, hp, turn, effects, nextEffectId }
+}
+
+// ---------- After-cast modifiers (Seeking Spell) ----------
+
+/** The after-cast modifier, or why it can't be used right now. */
+function resolveAfterCast(
+  build: CharacterBuild,
+  state: CharacterState,
+  modifierId: string,
+): { ok: true; value: SpellModifierDef } | { ok: false; reason: string } {
+  const m = getSpellModifiers(build).find((k) => k.id === modifierId)
+  if (!m || !m.afterCast) return { ok: false, reason: `Unknown spell modifier: ${modifierId}` }
+  const spell = state.turn.lastSpell ? getAction(build, state.turn.lastSpell) : undefined
+  if (!spell) return { ok: false, reason: `${m.name} only works right after casting a spell` }
+  const problem = modifierProblem(m, spell)
+  if (problem) return { ok: false, reason: problem }
+  if (!canAfford(build, state, m.costs)) return { ok: false, reason: `Not enough resources for ${m.name}` }
+  return { ok: true, value: m }
+}
+
+function applyAfterCast(build: CharacterBuild, state: CharacterState, modifierId: string): CharacterState {
+  const r = resolveAfterCast(build, state, modifierId)
+  if (!r.ok) throw new Error(r.reason)
+  const expended = { ...state.expended }
+  for (const c of r.value.costs) expended[c.resource] = (expended[c.resource] ?? 0) + c.amount
+  return { ...state, expended, turn: { ...state.turn, lastSpell: null } }
 }
 
 // ---------- Rests ----------
@@ -231,6 +288,12 @@ export function checkEvent(build: CharacterBuild, state: CharacterState, ev: Gam
       return state.effects.some((e) => e.id === ev.effectId) ? ok() : fail('No such effect')
     case 'DISMISS_FOLLOW_UPS':
       return state.turn.followUps.length > 0 ? ok() : fail('Nothing to skip')
+    case 'AFTER_CAST_MODIFIER': {
+      const r = resolveAfterCast(build, state, ev.modifierId)
+      return r.ok ? ok() : fail(r.reason)
+    }
+    case 'SKIP_AFTER_CAST':
+      return state.turn.lastSpell ? ok() : fail('Nothing to skip')
     case 'NEW_TURN':
     case 'LONG_REST':
       return ok()
@@ -239,14 +302,18 @@ export function checkEvent(build: CharacterBuild, state: CharacterState, ev: Gam
 
 /** Applies an event. Assumes it was checked; throws if it is invalid. */
 export function applyEvent(build: CharacterBuild, state: CharacterState, ev: GameEvent): CharacterState {
-  const cleared = { ...state, turn: { ...state.turn, followUps: [] } }
+  const cleared = { ...state, turn: { ...state.turn, followUps: [], lastSpell: null } }
   switch (ev.type) {
     case 'PERFORM_ACTION':
       return applyPerform(build, state, ev)
     case 'USE_ECONOMY':
       return { ...cleared, turn: { ...cleared.turn, [ev.economy]: true } }
     case 'DISMISS_FOLLOW_UPS':
-      return cleared
+      return { ...state, turn: { ...state.turn, followUps: [] } }
+    case 'AFTER_CAST_MODIFIER':
+      return applyAfterCast(build, state, ev.modifierId)
+    case 'SKIP_AFTER_CAST':
+      return { ...state, turn: { ...state.turn, lastSpell: null } }
     case 'NEW_TURN':
       return { ...state, turn: freshTurn(), effects: state.effects.filter((e) => !e.endsOnNewTurn) }
     case 'SHORT_REST': {

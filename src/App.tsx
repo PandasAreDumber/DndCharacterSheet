@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { ActionTabs } from './components/ActionTabs'
+import { AfterCastPrompt } from './components/AfterCastPrompt'
 import { EffectsPanel } from './components/EffectsPanel'
 import { HpPanel } from './components/HpPanel'
 import { MessageToast } from './components/MessageToast'
+import { ModifierHelp } from './components/ModifierHelp'
 import { Passives } from './components/Passives'
 import { ResourcePanel } from './components/ResourcePanel'
 import { RestButtons } from './components/RestButtons'
@@ -36,7 +38,9 @@ function App() {
       <ActionTabs character={character} />
       <ResourcePanel character={character} />
       <Passives character={character} />
+      <ModifierHelp character={character} />
       <RestButtons character={character} />
+      <AfterCastPrompt character={character} />
       <MessageToast />
     </main>
   )
