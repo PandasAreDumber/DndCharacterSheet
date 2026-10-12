@@ -1,4 +1,31 @@
 @import "tailwindcss";
+
+/* `dark:` classes apply in dark mode (the abyss theme), not based on the OS setting. */
+@custom-variant dark (&:where([data-theme="abyss"], [data-theme="abyss"] *));
 @plugin "daisyui" {
-  themes: dark --default, light;
+  themes: abyss --default, fantasy;
+}
+
+/* Tweaks to abyss (dark mode). Colors keep the same meaning as in fantasy (light mode):
+   primary = main buttons (violet), secondary = Metamagic (blue), accent = active effects (orange). */
+@plugin "daisyui/theme" {
+  name: "abyss";
+  --color-primary: oklch(68% 0.17 295);
+  --color-primary-content: oklch(18% 0.05 295);
+  --color-secondary: oklch(75% 0.13 235);
+  --color-secondary-content: oklch(20% 0.05 235);
+  --color-accent: oklch(78% 0.16 60);
+  --color-accent-content: oklch(22% 0.05 60);
+}
+
+/* Only show the blinking text cursor in boxes you can type in (hides it on plain text, e.g. with caret browsing on). */
+@layer base {
+  body {
+    caret-color: transparent;
+  }
+  input,
+  textarea,
+  [contenteditable="true"] {
+    caret-color: auto;
+  }
 }

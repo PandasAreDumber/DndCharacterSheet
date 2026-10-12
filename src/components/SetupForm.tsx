@@ -22,6 +22,7 @@ type Draft = {
   lineageId: string
   level: string
   maxHp: string
+  ac: string
   abilities: Record<AbilityName, string>
   spells: Spell[]
   spellModifiers: string[]
@@ -39,6 +40,7 @@ function toDraft(b: CharacterBuild | null): Draft {
       lineageId: '',
       level: '1',
       maxHp: '',
+      ac: '10',
       abilities: { str: '10', dex: '10', con: '10', int: '10', wis: '10', cha: '10' },
       spells: [],
       spellModifiers: [],
@@ -52,6 +54,7 @@ function toDraft(b: CharacterBuild | null): Draft {
     lineageId: b.lineageId ?? '',
     level: String(b.level),
     maxHp: String(b.maxHp),
+    ac: String(b.ac),
     abilities: Object.fromEntries(ABILITIES.map((a) => [a.id, String(b.abilities[a.id])])) as Record<AbilityName, string>,
     spells: b.spells,
     spellModifiers: b.spellModifiers,
@@ -76,8 +79,10 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
   const subclassUnlocked = Number.isInteger(level) && level >= pickSubclassAt
 
   const errors: string[] = []
+  if (!draft.speciesId) errors.push('Pick a species.')
   if (!inRange(toInt(draft.level), 1, 10)) errors.push('Level must be 1 to 10.')
   if (!inRange(toInt(draft.maxHp), 1, 999)) errors.push('Max HP must be at least 1.')
+  if (!inRange(toInt(draft.ac), 1, 40)) errors.push('Armor Class must be 1 to 40.')
   if (ABILITIES.some((a) => !inRange(toInt(draft.abilities[a.id]), 1, 30))) errors.push('Ability scores must be 1 to 30.')
 
   const save = () => {
@@ -90,6 +95,7 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
       lineageId: draft.lineageId || null,
       level: toInt(draft.level),
       maxHp: toInt(draft.maxHp),
+      ac: toInt(draft.ac),
       abilities: Object.fromEntries(ABILITIES.map((a) => [a.id, toInt(draft.abilities[a.id])])) as Record<
         AbilityName,
         number
@@ -168,7 +174,9 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
               })
             }
           >
-            <option value="">None</option>
+            <option value="" disabled>
+              Pick a species
+            </option>
             {speciesOptions.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -215,10 +223,22 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
             onChange={(e) => update({ maxHp: e.target.value })}
           />
         </fieldset>
+        <fieldset className="fieldset">
+          <legend className="fieldset-legend">Armor Class</legend>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={40}
+            className="input w-full"
+            value={draft.ac}
+            onChange={(e) => update({ ac: e.target.value })}
+          />
+        </fieldset>
       </div>
 
-      <fieldset className="fieldset">
-        <legend className="fieldset-legend">Ability scores</legend>
+      <fieldset className="fieldset rounded-box border border-primary/40 bg-primary/5 p-3">
+        <legend className="fieldset-legend px-1 text-primary">Ability scores</legend>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
           {ABILITIES.map((a) => (
             <label key={a.id} className="flex flex-col items-center gap-1 text-xs font-semibold">
@@ -238,8 +258,8 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
       </fieldset>
 
       {modifiers.options.length > 0 && (
-        <fieldset className="fieldset">
-          <legend className="fieldset-legend">{modifiers.name}</legend>
+        <fieldset className="fieldset rounded-box border border-secondary/50 bg-secondary/10 p-3">
+          <legend className="fieldset-legend px-1 text-secondary">{modifiers.name}</legend>
           {modifiers.unlockLevel > level && (
             <p className="label text-xs">You can use these from level {modifiers.unlockLevel}</p>
           )}
@@ -248,7 +268,7 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
               <label key={m.id} className="flex cursor-pointer items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  className="checkbox checkbox-sm"
+                  className="checkbox checkbox-secondary checkbox-sm"
                   checked={draft.spellModifiers.includes(m.id)}
                   onChange={() =>
                     update({
@@ -263,7 +283,7 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
             ))}
           </div>
           <details className="text-sm">
-            <summary className="cursor-pointer text-xs opacity-60">What do these do?</summary>
+            <summary className="cursor-pointer text-xs text-secondary">What do these do?</summary>
             <dl className="mt-2 flex flex-col gap-2">
               {modifiers.options.map((m) => (
                 <div key={m.id}>
@@ -276,13 +296,13 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
         </fieldset>
       )}
 
-      <fieldset className="fieldset">
-        <legend className="fieldset-legend">Your spells</legend>
+      <fieldset className="fieldset rounded-box border border-accent/50 bg-accent/5 p-3">
+        <legend className="fieldset-legend px-1 text-accent">Your spells</legend>
         <p className="text-xs opacity-60">Spells your class or subclass always has are added for you.</p>
         {draft.spells.length > 0 && (
           <ul className="flex flex-col gap-1">
             {draft.spells.map((s) => (
-              <li key={s.name} className="flex items-center justify-between rounded-box bg-base-200 px-3 py-1 text-sm">
+              <li key={s.name} className="flex items-center justify-between rounded-box bg-base-100 px-3 py-1 text-sm">
                 <span>
                   {s.name}{' '}
                   <span className="opacity-60">

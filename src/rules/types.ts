@@ -25,6 +25,7 @@ export type CharacterBuild = {
   level: number
   abilities: AbilityScores
   maxHp: number // the one stored max
+  ac: number // Armor Class, typed in by the player (armor, shields and magic items aren't tracked)
   spells: Spell[] // spells the player added themselves
   spellModifiers: string[] // chosen options like Metamagic, by id
 }
@@ -90,6 +91,9 @@ export type EffectDef = {
   endsOnNewTurn?: boolean
 }
 
+/** Where a feature comes from, so the UI can tag it. Set by the engine, not in the data files. */
+export type FeatureSource = { kind: 'class' | 'subclass' | 'species'; name: string }
+
 export type ActionDef = {
   id: string
   name: string
@@ -109,6 +113,7 @@ export type ActionDef = {
   /** Heals the character this much (capped at max HP). */
   heal?: Formula
   note?: TextFormula
+  source?: FeatureSource
 }
 
 /** Something that changes how a spell is cast, like Metamagic. */
@@ -139,6 +144,7 @@ export type PassiveDef = {
   name: string
   minLevel: number
   text: TextFormula
+  source?: FeatureSource
 }
 
 /** A spell a class or subclass always has prepared, optionally with extra ways to pay. */

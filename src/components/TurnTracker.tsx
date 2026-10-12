@@ -16,7 +16,7 @@ export function TurnTracker({ character }: { character: CharacterView }) {
   const { turn } = character.state
 
   return (
-    <section className="sticky top-0 z-10 -mx-4 border-b border-base-300 bg-base-100/95 px-4 py-3 backdrop-blur">
+    <section className="sticky top-0 z-10 -mx-4 border-b border-base-content/10 bg-base-300/95 px-4 py-3 backdrop-blur">
       <div className="grid grid-cols-3 gap-2">
         {ECONOMIES.map((e) => {
           const used = turn[e.id]

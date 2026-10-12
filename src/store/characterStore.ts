@@ -3,6 +3,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { abilityMod } from '../rules/abilities'
 import { changeBuild, compact, dispatch, newTracker, undo } from '../rules/engine'
 import type { CharacterBuild, GameEvent, Spell, Tracker } from '../rules/types'
 
@@ -121,12 +122,16 @@ export const useCharacterStore = create<CharacterStore>()(
     }),
     {
       name: 'dnd-combat-tracker',
-      version: 2,
+      version: 3,
       // Saves from older versions of the app get the fields they're missing.
       migrate: (persisted, version) => {
         const saved = persisted as { build: CharacterBuild | null; tracker: Tracker | null }
         if (version < 2 && saved.build) {
           saved.build = { ...saved.build, speciesId: null, lineageId: null }
+        }
+        if (version < 3 && saved.build) {
+          // AC wasn't tracked before. Start at unarmored AC (10 + DEX); the player can fix it in Edit.
+          saved.build = { ...saved.build, ac: 10 + abilityMod(saved.build.abilities.dex) }
         }
         return saved
       },

@@ -21,6 +21,7 @@ import type {
   CharacterBuild,
   CharacterState,
   Economy,
+  FeatureSource,
   ResourceKind,
   Spell,
   SpellModifierDef,
@@ -35,7 +36,7 @@ export type CharacterView = {
   title: string // "Level 5 Orc Paladin (Oath of Glory)"
   speciesLine: string | null // "Goliath, Storm Giant"
   resources: ResourceView[]
-  passives: { id: string; name: string; text: string }[]
+  passives: { id: string; name: string; text: string; source?: FeatureSource }[]
   actionsByEconomy: Record<Economy, ActionDef[]> // follow ups are not in here
   followUps: ActionDef[] // unlocked by the last action, shown as a prompt
   concentration: string | null // name of the effect being concentrated on
@@ -75,7 +76,12 @@ export function viewCharacter(build: CharacterBuild, tracker: Tracker): Characte
       current: currentOf(build, state, r.id),
       max: r.max(build),
     })),
-    passives: getPassives(build).map((p) => ({ id: p.id, name: p.name, text: resolveText(p.text, build) })),
+    passives: getPassives(build).map((p) => ({
+      id: p.id,
+      name: p.name,
+      text: resolveText(p.text, build),
+      ...(p.source ? { source: p.source } : {}),
+    })),
     actionsByEconomy,
     followUps,
     concentration: state.effects.find((e) => e.concentration)?.name ?? null,
@@ -121,6 +127,7 @@ export type ActionView = {
   name: string
   note?: string
   spell?: Spell
+  source?: FeatureSource // class / subclass / species it comes from
   isFollowUp: boolean
   payments: PaymentView[] // only ones you can still afford
   spellModifiers: ModifierView[] // ones that can apply to this action
@@ -176,6 +183,7 @@ export function describeAction(
     name: action.name,
     ...(action.note !== undefined ? { note: resolveText(action.note, build) } : {}),
     ...(action.spell ? { spell: action.spell } : {}),
+    ...(action.source ? { source: action.source } : {}),
     isFollowUp: !!action.after,
     payments,
     spellModifiers,

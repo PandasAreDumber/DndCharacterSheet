@@ -5,6 +5,7 @@ import type { CharacterView } from '../store/selectors'
 import { useActionView } from '../store/useCharacter'
 import { Modal } from './Modal'
 import { ModifierHelpLink } from './ModifierHelp'
+import { SourceTag } from './SourceTag'
 
 export function ActionRow({ character, action }: { character: CharacterView; action: ActionDef }) {
   const perform = useCharacterStore((s) => s.perform)
@@ -32,7 +33,7 @@ export function ActionRow({ character, action }: { character: CharacterView; act
 
   return (
     <li
-      className={`rounded-box border p-3 ${view.isFollowUp ? 'border-accent bg-accent/10' : 'border-base-300'} ${
+      className={`rounded-box border p-3 ${view.isFollowUp ? 'border-accent bg-accent/10' : 'border-base-content/10 bg-base-100 shadow-sm'} ${
         view.available ? '' : 'opacity-50'
       }`}
     >
@@ -40,33 +41,43 @@ export function ActionRow({ character, action }: { character: CharacterView; act
         <span className="font-semibold">{view.name}</span>
         {view.isFollowUp && <span className="badge badge-accent badge-sm">Follow up</span>}
         {spell && (
-          <span className="badge badge-ghost badge-sm">{spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}</span>
+          <span
+            className={`badge badge-soft badge-sm ${
+              // In dark mode the soft neutral tag disappears into the card, so outline it there.
+              spell.level === 0
+                ? 'badge-neutral dark:border-base-content dark:bg-transparent dark:text-base-content'
+                : 'badge-primary'
+            }`}
+          >
+            {spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}
+          </span>
         )}
-        {spell?.concentration && <span className="badge badge-outline badge-sm">Conc.</span>}
+        {spell?.concentration && <span className="badge badge-accent badge-outline badge-sm">Conc.</span>}
+        {view.source && <SourceTag source={view.source} />}
       </div>
       {view.note && <p className="mt-1 text-sm opacity-70">{view.note}</p>}
 
       {showMods && (
         <details className="mt-1 text-xs">
-          <summary className="cursor-pointer opacity-70">
+          <summary className="cursor-pointer font-semibold text-secondary">
             {character.spellModifierName}
             {mods.length > 0 && <span className="badge badge-secondary badge-xs ml-1">{mods.length}</span>}
           </summary>
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-            {view.spellModifiers.map((m) => (
-              <span key={m.id} className="flex items-center gap-1">
-                <label className="flex cursor-pointer items-center gap-1">
+          <div className="mt-1 flex items-start gap-2 rounded-box border border-secondary/40 bg-secondary/10 p-2">
+            <div className="flex flex-1 flex-wrap gap-x-3 gap-y-1">
+              {view.spellModifiers.map((m) => (
+                <label key={m.id} className="flex cursor-pointer items-center gap-1">
                   <input
                     type="checkbox"
-                    className="checkbox checkbox-xs"
+                    className="checkbox checkbox-secondary checkbox-xs"
                     checked={mods.includes(m.id)}
                     onChange={() => toggleMod(m.id)}
                   />
                   {m.name} ({m.cost})
                 </label>
-                <ModifierHelpLink modifier={m} />
-              </span>
-            ))}
+              ))}
+            </div>
+            <ModifierHelpLink name={character.spellModifierName} />
           </div>
         </details>
       )}

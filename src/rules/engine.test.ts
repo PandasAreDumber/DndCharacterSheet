@@ -16,6 +16,7 @@ function sorcerer(level: number, spells: Spell[] = [], spellModifiers: string[] 
     level,
     abilities,
     maxHp: 40,
+    ac: 14,
     spells,
     spellModifiers,
   }
@@ -31,6 +32,7 @@ function paladin(level: number): CharacterBuild {
     level,
     abilities,
     maxHp: 60,
+    ac: 14,
     spells: [],
     spellModifiers: [],
   }

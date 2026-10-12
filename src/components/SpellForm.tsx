@@ -43,7 +43,7 @@ export function SpellForm({
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-box border border-base-300 p-3">
+    <div className="flex flex-col gap-2 rounded-box border border-base-content/10 bg-base-100 p-3">
       <div className="flex gap-2">
         <input
           className="input flex-1"
