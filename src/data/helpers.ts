@@ -2,7 +2,7 @@ import { proficiencyBonus } from '../rules/abilities'
 import type { ActionDef, CastingTime, FeatureSet, Formula, GrantedSpell, ResourceDef, Spell } from '../rules/types'
 
 /** Short way to write a spell. Only name and level are required. */
-// TODO(rules): the `range` values in the class and species data are the 2024 ranges from memory. Double check against the book.
+// TODO(rules): the `range` and `duration` values in the class and species data are the 2024 ranges from memory. Double check against the book.
 export function spell(
   name: string,
   level: number,
@@ -16,6 +16,7 @@ export function spell(
     ritual: opts.ritual ?? false,
     upcast: opts.upcast ?? false,
     ...(opts.range !== undefined ? { range: opts.range } : {}),
+    ...(opts.duration !== undefined ? { duration: opts.duration } : {}),
     ...(opts.note !== undefined ? { note: opts.note } : {}),
   }
 }

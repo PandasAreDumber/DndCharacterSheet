@@ -308,6 +308,7 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
                   <span className="opacity-60">
                     ({s.level === 0 ? 'cantrip' : `L${s.level}`}, {s.castingTime}
                     {s.range ? `, ${s.range}` : ''}
+                    {s.duration ? `, ${s.duration}` : ''}
                     {s.concentration ? ', conc.' : ''})
                   </span>
                 </span>

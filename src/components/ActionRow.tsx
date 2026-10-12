@@ -53,6 +53,7 @@ export function ActionRow({ character, action }: { character: CharacterView; act
           </span>
         )}
         {spell?.range && <span className="badge badge-ghost badge-sm">{spell.range}</span>}
+        {spell?.duration && <span className="badge badge-ghost badge-sm">{spell.duration}</span>}
         {spell?.concentration && <span className="badge badge-accent badge-outline badge-sm">Conc.</span>}
         {view.source && <SourceTag source={view.source} />}
       </div>

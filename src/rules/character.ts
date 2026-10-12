@@ -149,7 +149,15 @@ function spellAction(
     economy: economyFor(spell.castingTime),
     payments: [...payments, ...extraPayments],
     spell,
-    ...(spell.concentration ? { effect: { name: spell.name, duration: 'Concentration', concentration: true } } : {}),
+    ...(spell.concentration
+      ? {
+          effect: {
+            name: spell.name,
+            duration: spell.duration ? `Concentration, ${spell.duration}` : 'Concentration',
+            concentration: true,
+          },
+        }
+      : {}),
     ...(finalNote !== undefined ? { note: finalNote } : {}),
   }
 }

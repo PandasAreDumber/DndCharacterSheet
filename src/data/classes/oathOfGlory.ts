@@ -38,12 +38,12 @@ export const oathOfGlory: SubclassDef = {
     },
   ],
   grantedSpells: [
-    { spell: spell('Guiding Bolt', 1, { range: '120 ft', upcast: true }), minLevel: 3 },
-    { spell: spell('Heroism', 1, { range: 'Touch', concentration: true, upcast: true }), minLevel: 3 },
-    { spell: spell('Enhance Ability', 2, { range: 'Touch', concentration: true, upcast: true }), minLevel: 5 },
-    { spell: spell('Magic Weapon', 2, { range: 'Touch', castingTime: 'bonus', upcast: true }), minLevel: 5 },
-    { spell: spell('Haste', 3, { range: '30 ft', concentration: true }), minLevel: 9 },
-    { spell: spell('Protection from Energy', 3, { range: 'Touch', concentration: true }), minLevel: 9 },
+    { spell: spell('Guiding Bolt', 1, { range: '120 ft', duration: '1 round', upcast: true }), minLevel: 3 },
+    { spell: spell('Heroism', 1, { range: 'Touch', duration: '1 minute', concentration: true, upcast: true }), minLevel: 3 },
+    { spell: spell('Enhance Ability', 2, { range: 'Touch', duration: '1 hour', concentration: true, upcast: true }), minLevel: 5 },
+    { spell: spell('Magic Weapon', 2, { range: 'Touch', duration: '1 hour', castingTime: 'bonus', upcast: true }), minLevel: 5 },
+    { spell: spell('Haste', 3, { range: '30 ft', duration: '1 minute', concentration: true }), minLevel: 9 },
+    { spell: spell('Protection from Energy', 3, { range: 'Touch', duration: '1 hour', concentration: true }), minLevel: 9 },
   ],
   spellModifiers: [],
 }

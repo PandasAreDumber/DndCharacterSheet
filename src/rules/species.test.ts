@@ -187,12 +187,12 @@ describe('feature sources and descriptions', () => {
     }
   })
 
-  it('every spell from a class, subclass or species has a range', () => {
+  it('every spell from a class, subclass or species has a range and duration', () => {
     for (const sp of ALL_SPECIES) {
       for (const lineageId of sp.lineages.length ? sp.lineages.map((l) => l.id) : [null]) {
         for (const classId of ['paladin', 'sorcerer']) {
           const b = build(sp.id, lineageId, 10, classId)
-          const missing = getActions(b).filter((a) => a.source && a.spell && !a.spell.range).map((a) => a.name)
+          const missing = getActions(b).filter((a) => a.source && a.spell && !(a.spell.range && a.spell.duration)).map((a) => a.name)
           expect(missing, `${classId} / ${sp.id}`).toEqual([])
         }
       }
