@@ -39,7 +39,7 @@ export type CharacterView = {
   actionsByEconomy: Record<Economy, ActionDef[]> // follow ups are not in here
   followUps: ActionDef[] // unlocked by the last action, shown as a prompt
   concentration: string | null // name of the effect being concentrated on
-  spellModifiers: SpellModifierDef[]
+  spellModifiers: ModifierView[] // the ones the player picked and has the level for
   spellModifierName: string
   /** Right after a spell: modifiers the player can still use on it (Seeking Spell). Null if none. */
   afterCast: { spellName: string; modifiers: ModifierView[] } | null
@@ -79,7 +79,7 @@ export function viewCharacter(build: CharacterBuild, tracker: Tracker): Characte
     actionsByEconomy,
     followUps,
     concentration: state.effects.find((e) => e.concentration)?.name ?? null,
-    spellModifiers: getSpellModifiers(build),
+    spellModifiers: getSpellModifiers(build).map(modifierView),
     spellModifierName: cls.spellModifierName ?? 'Spell options',
     afterCast: afterCastView(build, state),
     hitDice: {

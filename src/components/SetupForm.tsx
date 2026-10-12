@@ -2,7 +2,6 @@ import { useState } from 'react'
 import type { AbilityName, CharacterBuild, Spell } from '../rules/types'
 import { useCharacterStore } from '../store/characterStore'
 import { classOptions, speciesOptions, spellModifierOptions, subclassLevel, subclassOptions } from '../store/selectors'
-import { ModifierInfo } from './ModifierInfo'
 import { SpellForm } from './SpellForm'
 
 const ABILITIES: { id: AbilityName; label: string }[] = [
@@ -246,26 +245,34 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
           )}
           <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
             {modifiers.options.map((m) => (
-              <div key={m.id} className="flex items-center gap-1">
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="checkbox checkbox-sm"
-                    checked={draft.spellModifiers.includes(m.id)}
-                    onChange={() =>
-                      update({
-                        spellModifiers: draft.spellModifiers.includes(m.id)
-                          ? draft.spellModifiers.filter((x) => x !== m.id)
-                          : [...draft.spellModifiers, m.id],
-                      })
-                    }
-                  />
-                  {m.name} ({m.cost})
-                </label>
-                <ModifierInfo modifier={m} />
-              </div>
+              <label key={m.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-sm"
+                  checked={draft.spellModifiers.includes(m.id)}
+                  onChange={() =>
+                    update({
+                      spellModifiers: draft.spellModifiers.includes(m.id)
+                        ? draft.spellModifiers.filter((x) => x !== m.id)
+                        : [...draft.spellModifiers, m.id],
+                    })
+                  }
+                />
+                {m.name} ({m.cost})
+              </label>
             ))}
           </div>
+          <details className="text-sm">
+            <summary className="cursor-pointer text-xs opacity-60">What do these do?</summary>
+            <dl className="mt-2 flex flex-col gap-2">
+              {modifiers.options.map((m) => (
+                <div key={m.id}>
+                  <dt className="inline font-semibold">{m.name}. </dt>
+                  <dd className="inline opacity-80">{m.description}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
         </fieldset>
       )}
 

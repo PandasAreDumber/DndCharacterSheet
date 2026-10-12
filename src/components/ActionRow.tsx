@@ -4,7 +4,7 @@ import { useCharacterStore } from '../store/characterStore'
 import type { CharacterView } from '../store/selectors'
 import { useActionView } from '../store/useCharacter'
 import { Modal } from './Modal'
-import { ModifierInfo } from './ModifierInfo'
+import { ModifierHelpLink } from './ModifierHelp'
 
 export function ActionRow({ character, action }: { character: CharacterView; action: ActionDef }) {
   const perform = useCharacterStore((s) => s.perform)
@@ -64,7 +64,7 @@ export function ActionRow({ character, action }: { character: CharacterView; act
                   />
                   {m.name} ({m.cost})
                 </label>
-                <ModifierInfo modifier={m} />
+                <ModifierHelpLink modifier={m} />
               </span>
             ))}
           </div>
