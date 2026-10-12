@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { spell } from '../data/helpers'
 import { currentOf, getActions, getPassives, getResources, maxOf } from './character'
-import { checkEvent, compact, currentState, dispatch, newTracker, undo } from './engine'
+import { changeBuild, checkEvent, compact, currentState, dispatch, newTracker, undo } from './engine'
 import type { CharacterBuild, GameEvent, Spell, Tracker } from './types'
 
 const abilities = { str: 10, dex: 14, con: 14, int: 10, wis: 10, cha: 16 }
@@ -274,12 +274,20 @@ describe('paladin features', () => {
 })
 
 describe('rests and HP', () => {
+  it("short rest can't spend more hit dice than you have, and undoes in one step", () => {
+    const b = paladin(2)
+    const t = run(b, [{ type: 'DAMAGE', amount: 20 }])
+    expect(dispatch(b, t, { type: 'SHORT_REST', hitDice: { count: 3, healing: 10 } }).ok).toBe(false)
+    const rested = run(b, [{ type: 'SHORT_REST', hitDice: { count: 2, healing: 12 } }], t)
+    expect(currentState(b, rested).hp.current).toBe(52)
+    expect(currentState(b, undo(rested)).hp.current).toBe(40)
+  })
+
   it('long rest restores all hit point dice, HP, and clears temp HP', () => {
     const b = paladin(6)
     let t = run(b, [
       { type: 'DAMAGE', amount: 30 },
-      { type: 'SHORT_REST' },
-      { type: 'SPEND_HIT_DICE', count: 4, healing: 25 },
+      { type: 'SHORT_REST', hitDice: { count: 4, healing: 25 } },
       { type: 'SET_TEMP_HP', amount: 5 },
     ])
     let s = currentState(b, t)
@@ -337,5 +345,20 @@ describe('undo', () => {
     expect(c.log).toHaveLength(1)
     expect(currentState(b, c)).toEqual(currentState(b, t))
     expect(currentState(b, undo(c)).hp.current).toBe(35)
+  })
+})
+
+describe('changing the build', () => {
+  it('keeps spent resources, clamps HP, and starts fresh on a class change', () => {
+    const b = sorcerer(5, [fireball])
+    const t = run(b, [cast('spell:fireball', 'slot_3'), { type: 'DAMAGE', amount: 5 }])
+    const leveled = changeBuild(b, { ...b, level: 6, maxHp: 30 }, t)
+    const s = currentState({ ...b, level: 6, maxHp: 30 }, leveled)
+    expect(s.expended).toEqual({ slot_3: 1 })
+    expect(s.hp.current).toBe(30)
+    expect(leveled.log).toEqual([])
+
+    const p = paladin(5)
+    expect(currentState(p, changeBuild(b, p, t)).expended).toEqual({})
   })
 })

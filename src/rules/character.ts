@@ -7,6 +7,7 @@ import type {
   CharacterBuild,
   CharacterState,
   ClassDef,
+  Cost,
   Economy,
   FeatureSet,
   PassiveDef,
@@ -87,6 +88,13 @@ export function maxOf(build: CharacterBuild, id: ResourceId): number {
 /** Current = max - expended. Can be above max for created slots, never below 0. */
 export function currentOf(build: CharacterBuild, state: CharacterState, id: ResourceId): number {
   return Math.max(0, maxOf(build, id) - (state.expended[id] ?? 0))
+}
+
+/** True if the character has enough of every resource in these costs. */
+export function canAfford(build: CharacterBuild, state: CharacterState, costs: Cost[]): boolean {
+  const totals = new Map<string, number>()
+  for (const c of costs) totals.set(c.resource, (totals.get(c.resource) ?? 0) + c.amount)
+  return [...totals].every(([resource, amount]) => currentOf(build, state, resource) >= amount)
 }
 
 function economyFor(castingTime: CastingTime): Economy {
