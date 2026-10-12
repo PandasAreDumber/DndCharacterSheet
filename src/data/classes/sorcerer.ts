@@ -26,37 +26,97 @@ const pointsToSlot: PaymentOption[] = CREATE_SLOT_TABLE.map(([level, cost, minLe
   minLevel,
 }))
 
-// TODO(rules): double check these 2024 costs and which options can be combined.
+// 2024 Metamagic. Only one option per spell, except Empowered and Seeking which stack with others.
+// Descriptions are short summaries, not the full rule text.
+const sp = (amount: number) => [{ resource: 'sorcery_points', amount }]
+
 const metamagic: SpellModifierDef[] = [
-  { id: 'careful', name: 'Careful Spell', minLevel: 2, costs: [{ resource: 'sorcery_points', amount: 1 }] },
-  { id: 'distant', name: 'Distant Spell', minLevel: 2, costs: [{ resource: 'sorcery_points', amount: 1 }] },
+  {
+    id: 'careful',
+    name: 'Careful Spell',
+    minLevel: 2,
+    costs: sp(1),
+    description:
+      'For a spell that forces a saving throw: pick a number of creatures up to your Charisma modifier (min 1). They automatically succeed on the save and take no damage if they would normally take half on a success.',
+  },
+  {
+    id: 'distant',
+    name: 'Distant Spell',
+    minLevel: 2,
+    costs: sp(1),
+    description:
+      'For a spell with a range of at least 5 feet, double its range. For a spell with a range of Touch, its range becomes 30 feet.',
+  },
   {
     id: 'empowered',
     name: 'Empowered Spell',
     minLevel: 2,
-    costs: [{ resource: 'sorcery_points', amount: 1 }],
+    costs: sp(1),
     combinable: true,
+    description:
+      'When you roll damage for the spell, reroll a number of the damage dice up to your Charisma modifier (min 1) and use the new rolls. Works even if you already used another Metamagic on the spell.',
   },
-  { id: 'extended', name: 'Extended Spell', minLevel: 2, costs: [{ resource: 'sorcery_points', amount: 1 }] },
-  { id: 'heightened', name: 'Heightened Spell', minLevel: 2, costs: [{ resource: 'sorcery_points', amount: 2 }] },
+  {
+    id: 'extended',
+    name: 'Extended Spell',
+    minLevel: 2,
+    costs: sp(1),
+    description:
+      'For a spell with a duration of 1 minute or longer, double the duration (up to 24 hours). If it needs Concentration, you have Advantage on saving throws to keep it.',
+  },
+  {
+    id: 'heightened',
+    name: 'Heightened Spell',
+    minLevel: 2,
+    costs: sp(2),
+    description: 'For a spell that forces a saving throw: one target has Disadvantage on its saves against the spell.',
+  },
   {
     id: 'quickened',
     name: 'Quickened Spell',
     minLevel: 2,
-    costs: [{ resource: 'sorcery_points', amount: 2 }],
+    costs: sp(2),
     economyChange: { from: 'action', to: 'bonus' },
-    // TODO(rules): 2024 Quickened may also forbid other level 1+ spells on the same turn. Not enforced beyond the one-slot rule.
+    locksLeveledSpells: true,
+    description:
+      "A spell with a casting time of an action is cast as a Bonus Action instead. You can't use it if you already cast a level 1+ spell this turn, and you can't cast another level 1+ spell this turn after using it.",
   },
   {
     id: 'seeking',
     name: 'Seeking Spell',
     minLevel: 2,
-    costs: [{ resource: 'sorcery_points', amount: 1 }],
+    costs: sp(1),
     combinable: true,
+    afterCast: true,
+    // TODO(rules): only matters for spells with an attack roll, but spells don't record that, so it's offered after every spell.
+    description:
+      'If you make an attack roll for the spell and miss, reroll the d20 and use the new roll. Works even if you already used another Metamagic on the spell.',
   },
-  { id: 'subtle', name: 'Subtle Spell', minLevel: 2, costs: [{ resource: 'sorcery_points', amount: 1 }] },
-  { id: 'transmuted', name: 'Transmuted Spell', minLevel: 2, costs: [{ resource: 'sorcery_points', amount: 1 }] },
-  { id: 'twinned', name: 'Twinned Spell', minLevel: 2, costs: [{ resource: 'sorcery_points', amount: 1 }] },
+  {
+    id: 'subtle',
+    name: 'Subtle Spell',
+    minLevel: 2,
+    costs: sp(1),
+    description:
+      "Cast the spell without Verbal, Somatic, or Material components (except Material components that are used up or have a gold cost). Nobody can tell you're casting.",
+  },
+  {
+    id: 'transmuted',
+    name: 'Transmuted Spell',
+    minLevel: 2,
+    costs: sp(1),
+    description:
+      "For a spell that deals Acid, Cold, Fire, Lightning, Poison, or Thunder damage, change that damage type to another one from the same list.",
+  },
+  {
+    id: 'twinned',
+    name: 'Twinned Spell',
+    minLevel: 2,
+    costs: sp(1),
+    needsUpcast: true,
+    description:
+      'For a spell that can target one more creature when cast with a higher slot (like Charm Person or Hold Person): its effective level goes up by 1, so it gets one more target. Only works on level 1+ spells that can be upcast.',
+  },
 ]
 
 export const sorcerer: ClassDef = {

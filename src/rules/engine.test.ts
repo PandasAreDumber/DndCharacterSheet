@@ -203,6 +203,72 @@ describe('sorcerer features', () => {
     const b = sorcerer(5, [fireball], ['subtle'])
     expect(dispatch(b, newTracker(b), cast('spell:fireball', 'slot_3', { spellModifiers: ['twinned'] })).ok).toBe(false)
   })
+
+  it('Empowered and Seeking stack with another metamagic', () => {
+    const b = sorcerer(5, [fireball], ['quickened', 'empowered', 'seeking'])
+    const t = run(b, [
+      cast('spell:fireball', 'slot_3', { spellModifiers: ['quickened', 'empowered'] }),
+      { type: 'AFTER_CAST_MODIFIER', modifierId: 'seeking' },
+    ])
+    expect(currentOf(b, currentState(b, t), 'sorcery_points')).toBe(1)
+  })
+
+  it('Seeking Spell is offered right after a spell, not before, and only once', () => {
+    const fireBolt = spell('Fire Bolt', 0)
+    const b = sorcerer(5, [fireball, fireBolt], ['seeking'])
+    const seek: GameEvent = { type: 'AFTER_CAST_MODIFIER', modifierId: 'seeking' }
+    // Not ticked before the cast, and not without a spell just cast.
+    expect(dispatch(b, newTracker(b), cast('spell:fire-bolt', 'cantrip', { spellModifiers: ['seeking'] })).ok).toBe(false)
+    expect(dispatch(b, newTracker(b), seek).ok).toBe(false)
+    // Right after a cantrip: costs 1 SP, then it's gone.
+    const t = run(b, [cast('spell:fire-bolt', 'cantrip'), seek])
+    expect(currentOf(b, currentState(b, t), 'sorcery_points')).toBe(4)
+    expect(dispatch(b, t, seek).ok).toBe(false)
+    // Skipping it spends nothing and also closes the chance.
+    const skipped = run(b, [cast('spell:fire-bolt', 'cantrip'), { type: 'SKIP_AFTER_CAST' }])
+    expect(currentOf(b, currentState(b, skipped), 'sorcery_points')).toBe(5)
+    expect(dispatch(b, skipped, seek).ok).toBe(false)
+    // Undo brings the prompt back.
+    expect(dispatch(b, undo(skipped), seek).ok).toBe(true)
+  })
+
+  it('Seeking Spell is not offered after a non-spell action or when out of SP', () => {
+    const b = sorcerer(2, [spell('Fire Bolt', 0)], ['seeking'])
+    const seek: GameEvent = { type: 'AFTER_CAST_MODIFIER', modifierId: 'seeking' }
+    expect(dispatch(b, run(b, [cast('innate_sorcery', 'use')]), seek).ok).toBe(false)
+    const broke = run(b, [cast('font_slot_to_points', 'slot_1'), cast('font_points_to_slot', 'slot_1')])
+    // 2 SP to make a slot leaves 0 at level 2 (SP capped at max), so Seeking can't be paid.
+    expect(currentOf(b, currentState(b, broke), 'sorcery_points')).toBe(0)
+    expect(dispatch(b, run(b, [cast('spell:fire-bolt', 'cantrip')], broke), seek).ok).toBe(false)
+  })
+
+  it('Quickened Spell blocks other level 1+ spells that turn, before or after', () => {
+    const fireBolt = spell('Fire Bolt', 0)
+    const b = sorcerer(6, [fireball, fireBolt, mistyStep], ['quickened'])
+    // After a Quickened Fireball, the action is free for a cantrip but not for a level 1+ spell,
+    // even one paid with SP that wouldn't hit the one-slot rule.
+    let t = run(b, [cast('spell:fireball', 'slot_3', { spellModifiers: ['quickened'] })])
+    expect(dispatch(b, t, cast('spell:fire-bolt', 'cantrip')).ok).toBe(true)
+    expect(dispatch(b, t, cast('spell:dissonant-whispers', 'psionic_sorcery')).ok).toBe(false)
+    // Already cast a level 1+ spell (even without a slot): can't Quicken anything.
+    t = run(b, [cast('spell:dissonant-whispers', 'slot_1')])
+    expect(dispatch(b, t, cast('spell:fire-bolt', 'cantrip', { spellModifiers: ['quickened'] })).ok).toBe(false)
+    // New turn clears it.
+    expect(() => run(b, [{ type: 'NEW_TURN' }, cast('spell:fire-bolt', 'cantrip', { spellModifiers: ['quickened'] })], t)).not.toThrow()
+  })
+
+  it('Twinned Spell only works on level 1+ spells that can be upcast', () => {
+    const b = sorcerer(5, [fireball, spell('Fire Bolt', 0), spell('Shield', 1, { castingTime: 'reaction' })], ['twinned'])
+    expect(dispatch(b, newTracker(b), cast('spell:fireball', 'slot_3', { spellModifiers: ['twinned'] })).ok).toBe(true)
+    expect(dispatch(b, newTracker(b), cast('spell:fire-bolt', 'cantrip', { spellModifiers: ['twinned'] })).ok).toBe(false)
+    expect(dispatch(b, newTracker(b), cast('spell:shield', 'slot_1', { spellModifiers: ['twinned'] })).ok).toBe(false)
+  })
+
+  it('metamagic on a psionic spell paid with SP costs both', () => {
+    const b = sorcerer(6, [], ['subtle'])
+    const t = run(b, [cast('spell:dissonant-whispers', 'psionic_sorcery', { spellModifiers: ['subtle'] })])
+    expect(currentOf(b, currentState(b, t), 'sorcery_points')).toBe(4)
+  })
 })
 
 describe('turn economy', () => {

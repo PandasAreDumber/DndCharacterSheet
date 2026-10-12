@@ -120,6 +120,17 @@ export type SpellModifierDef = {
   economyChange?: { from: Economy; to: Economy }
   /** Can be used together with another modifier on the same casting. */
   combinable?: boolean
+  /** Only works on level 1+ spells that can be upcast (Twinned Spell). */
+  needsUpcast?: boolean
+  /**
+   * Can't be used if a level 1+ spell was already cast this turn, and no level 1+ spell
+   * can be cast for the rest of the turn after using it (Quickened Spell).
+   */
+  locksLeveledSpells?: boolean
+  /** Offered right after the spell is cast instead of before (Seeking Spell, after a miss). */
+  afterCast?: boolean
+  /** What it does, shown in the info popup. A short summary, not the full rule text. */
+  description?: string
   note?: string
 }
 
@@ -186,6 +197,12 @@ export type TurnState = {
   reaction: boolean
   /** A spell slot was already spent on a spell this turn (2024 one-slot rule). */
   slotSpellCast: boolean
+  /** A level 1+ spell was cast this turn. Optional so saves from older versions still load. */
+  leveledSpellCast?: boolean
+  /** No more level 1+ spells this turn (after Quickened Spell). */
+  leveledSpellsLocked?: boolean
+  /** The spell just cast, while after-cast modifiers (Seeking Spell) can still be used on it. */
+  lastSpell?: string | null
   /** Actions unlocked by the last action (follow ups). */
   followUps: string[]
 }
@@ -225,6 +242,9 @@ export type GameEvent =
   | { type: 'HEAL'; amount: number }
   | { type: 'SET_TEMP_HP'; amount: number }
   | { type: 'END_EFFECT'; effectId: number }
+  /** Use an after-cast modifier (Seeking Spell) on the spell just cast. */
+  | { type: 'AFTER_CAST_MODIFIER'; modifierId: string }
+  | { type: 'SKIP_AFTER_CAST' } // player didn't need it (e.g. the attack hit)
   | { type: 'DISMISS_FOLLOW_UPS' } // player skips the follow up (e.g. no Inspiring Smite this time)
 
 /** State = base with every event in the log applied. Undo = drop the last event. */

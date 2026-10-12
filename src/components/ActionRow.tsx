@@ -4,6 +4,7 @@ import { useCharacterStore } from '../store/characterStore'
 import type { CharacterView } from '../store/selectors'
 import { useActionView } from '../store/useCharacter'
 import { Modal } from './Modal'
+import { ModifierInfo } from './ModifierInfo'
 
 export function ActionRow({ character, action }: { character: CharacterView; action: ActionDef }) {
   const perform = useCharacterStore((s) => s.perform)
@@ -53,15 +54,18 @@ export function ActionRow({ character, action }: { character: CharacterView; act
           </summary>
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
             {view.spellModifiers.map((m) => (
-              <label key={m.id} className="flex cursor-pointer items-center gap-1">
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-xs"
-                  checked={mods.includes(m.id)}
-                  onChange={() => toggleMod(m.id)}
-                />
-                {m.label}
-              </label>
+              <span key={m.id} className="flex items-center gap-1">
+                <label className="flex cursor-pointer items-center gap-1">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-xs"
+                    checked={mods.includes(m.id)}
+                    onChange={() => toggleMod(m.id)}
+                  />
+                  {m.name} ({m.cost})
+                </label>
+                <ModifierInfo modifier={m} />
+              </span>
             ))}
           </div>
         </details>

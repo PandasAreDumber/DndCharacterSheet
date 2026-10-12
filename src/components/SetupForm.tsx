@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { AbilityName, CharacterBuild, Spell } from '../rules/types'
 import { useCharacterStore } from '../store/characterStore'
 import { classOptions, speciesOptions, spellModifierOptions, subclassLevel, subclassOptions } from '../store/selectors'
+import { ModifierInfo } from './ModifierInfo'
 import { SpellForm } from './SpellForm'
 
 const ABILITIES: { id: AbilityName; label: string }[] = [
@@ -240,23 +241,29 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
       {modifiers.options.length > 0 && (
         <fieldset className="fieldset">
           <legend className="fieldset-legend">{modifiers.name}</legend>
-          <div className="grid grid-cols-2 gap-1">
+          {modifiers.unlockLevel > level && (
+            <p className="label text-xs">You can use these from level {modifiers.unlockLevel}</p>
+          )}
+          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
             {modifiers.options.map((m) => (
-              <label key={m.id} className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-sm"
-                  checked={draft.spellModifiers.includes(m.id)}
-                  onChange={() =>
-                    update({
-                      spellModifiers: draft.spellModifiers.includes(m.id)
-                        ? draft.spellModifiers.filter((x) => x !== m.id)
-                        : [...draft.spellModifiers, m.id],
-                    })
-                  }
-                />
-                {m.name} ({m.cost})
-              </label>
+              <div key={m.id} className="flex items-center gap-1">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-sm"
+                    checked={draft.spellModifiers.includes(m.id)}
+                    onChange={() =>
+                      update({
+                        spellModifiers: draft.spellModifiers.includes(m.id)
+                          ? draft.spellModifiers.filter((x) => x !== m.id)
+                          : [...draft.spellModifiers, m.id],
+                      })
+                    }
+                  />
+                  {m.name} ({m.cost})
+                </label>
+                <ModifierInfo modifier={m} />
+              </div>
             ))}
           </div>
         </fieldset>

@@ -177,6 +177,16 @@ export function getSpellModifiers(build: CharacterBuild): SpellModifierDef[] {
     .filter((m) => build.level >= m.minLevel && build.spellModifiers.includes(m.id))
 }
 
+/** Why this modifier can't be used on this action at all, or null if it can. Doesn't look at the turn. */
+export function modifierProblem(m: SpellModifierDef, action: ActionDef): string | null {
+  if (!action.spell) return `${m.name} only works on spells`
+  if (m.economyChange && m.economyChange.from !== action.economy) return `${m.name} doesn't apply to this spell`
+  if (m.needsUpcast && (action.spell.level === 0 || !action.spell.upcast)) {
+    return `${m.name} only works on level 1+ spells that can be upcast`
+  }
+  return null
+}
+
 /** Every spell modifier the class offers, for picking in setup. */
 export function getAllSpellModifiers(build: CharacterBuild): SpellModifierDef[] {
   return featureSets(build).flatMap((s) => s.spellModifiers)
