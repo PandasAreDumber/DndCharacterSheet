@@ -10,9 +10,9 @@ This is a **tracker, not a character builder**. The player types in their level,
 
 * Vite + React + TypeScript (strict mode)
 * Daisy Ui + Tailwind css
-* Zustand for state, using its `persist` middleware for localStorage
+* Zustand for state. Character saves use localStorage; settings use Zustand's `persist` middleware.
 * Vitest for tests
-* Supabase (auth + Postgres) added LATER, in phase 4. Do not add it before then.
+* Firebase Authentication (Google sign-in) for player identity and Cloud Firestore for character storage.
 * Keep dependencies minimal. Ask before adding anything beyond the above.
 
 ## Architecture (React flavored MVVM)
@@ -21,13 +21,13 @@ This is a **tracker, not a character builder**. The player types in their level,
 src/
   rules/        # MODEL. Pure TypeScript, no React imports. Engine + types.
   data/         # Class, subclass and spell data. Plain objects, no logic beyond small formulas.
-  store/        # VIEWMODEL. Zustand store + hooks (useCharacter). Calls into rules/.
+  store/        # VIEWMODEL. Zustand store + hooks (useCharacter), local saves, and Firebase sync. Calls into rules/.
   components/   # VIEW. Dumb components that render and call store actions.
 ```
 
 Rules:
 
-1. Everything in `rules/` is a pure function and has tests. No React, no Supabase, no side effects.
+1. Everything in `rules/` is a pure function and has tests. No React, Firebase, or side effects.
 2. Components never do rules math. They call store actions like `castSpell(spellId, payment)` or `shortRest()`.
 3. Every state change goes through an event (`{ type: "CAST_SPELL", ... }`) that gets appended to a log. This is how undo works. Undo should be one click because people misclick at the table constantly.
 
@@ -184,8 +184,7 @@ Do one phase at a time. Stop at the end of each phase, summarize what you did, a
    * Undo reverses the last event.
 2. **Basic UI on local state.** Character setup form, resource trackers, HP, Action / Bonus / Reaction lists, turn tracker, rest buttons, undo. Persist to localStorage. Mobile friendly, since people will use it on their phones at the table.
 3. **Polish.** Quick add spell form, active effects list, concentration warning, follow up prompts.
-4. **Supabase.** Auth (magic link email), one `characters` table with `build jsonb` and `state jsonb`, row level security so users only see their own characters. **localStorage stays the main copy** and syncs to Supabase in the background, so the app still works if the database is paused or wifi is bad.
-5. **Keep alive.** GitHub Actions cron that does a tiny read against Supabase every 3 days. Free projects pause after 7 days of no activity and we only play every couple weeks.
+4. **Firebase (current).** Firebase Authentication uses Google sign-in. Cloud Firestore stores a character's `build` and `tracker` at `users/{uid}/characters/main`. Firestore Security Rules restrict access to the signed-in user's UID. Guest and signed-in characters have separate localStorage saves; an existing guest character is uploaded on first sign-in when the account has no cloud character. Local changes remain available if Firestore cannot be reached and can be retried. Configure the Firebase web app with `VITE_FIREBASE_*` values at build time; see `README.md` and `firestore.rules`. No keep-alive cron is needed.
 
 ## Working style
 
