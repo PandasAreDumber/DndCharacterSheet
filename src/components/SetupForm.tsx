@@ -1,0 +1,341 @@
+import { useState } from 'react'
+import type { AbilityName, CastingTime, CharacterBuild, Spell } from '../rules/types'
+import { useCharacterStore } from '../store/characterStore'
+import { classOptions, spellModifierOptions, subclassOptions } from '../store/selectors'
+
+const ABILITIES: { id: AbilityName; label: string }[] = [
+  { id: 'str', label: 'STR' },
+  { id: 'dex', label: 'DEX' },
+  { id: 'con', label: 'CON' },
+  { id: 'int', label: 'INT' },
+  { id: 'wis', label: 'WIS' },
+  { id: 'cha', label: 'CHA' },
+]
+
+const CASTING_TIMES: { id: CastingTime; label: string }[] = [
+  { id: 'action', label: 'Action' },
+  { id: 'bonus', label: 'Bonus action' },
+  { id: 'reaction', label: 'Reaction' },
+  { id: 'other', label: 'Other (1 min+)' },
+]
+
+// Number fields are kept as text while typing so the box can be empty.
+type Draft = {
+  name: string
+  classId: string
+  subclassId: string
+  level: string
+  maxHp: string
+  abilities: Record<AbilityName, string>
+  spells: Spell[]
+  spellModifiers: string[]
+}
+
+const firstClass = classOptions[0]?.id ?? ''
+
+function toDraft(b: CharacterBuild | null): Draft {
+  if (!b) {
+    return {
+      name: '',
+      classId: firstClass,
+      subclassId: subclassOptions(firstClass)[0]?.id ?? '',
+      level: '1',
+      maxHp: '',
+      abilities: { str: '10', dex: '10', con: '10', int: '10', wis: '10', cha: '10' },
+      spells: [],
+      spellModifiers: [],
+    }
+  }
+  return {
+    name: b.name,
+    classId: b.classId,
+    subclassId: b.subclassId ?? '',
+    level: String(b.level),
+    maxHp: String(b.maxHp),
+    abilities: Object.fromEntries(ABILITIES.map((a) => [a.id, String(b.abilities[a.id])])) as Record<AbilityName, string>,
+    spells: b.spells,
+    spellModifiers: b.spellModifiers,
+  }
+}
+
+const toInt = (s: string) => Number.parseInt(s, 10)
+const inRange = (n: number, lo: number, hi: number) => Number.isInteger(n) && n >= lo && n <= hi
+
+const emptySpell = (): Spell => ({
+  name: '',
+  level: 1,
+  castingTime: 'action',
+  concentration: false,
+  ritual: false,
+  upcast: false,
+})
+
+export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null; onDone: () => void }) {
+  const saveBuild = useCharacterStore((s) => s.saveBuild)
+  const deleteCharacter = useCharacterStore((s) => s.deleteCharacter)
+  const [draft, setDraft] = useState<Draft>(() => toDraft(initial))
+  const [newSpell, setNewSpell] = useState<Spell>(emptySpell)
+
+  const update = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }))
+  const subclasses = subclassOptions(draft.classId)
+  const modifiers = spellModifierOptions(draft.classId)
+
+  const errors: string[] = []
+  if (!inRange(toInt(draft.level), 1, 10)) errors.push('Level must be 1 to 10.')
+  if (!inRange(toInt(draft.maxHp), 1, 999)) errors.push('Max HP must be at least 1.')
+  if (ABILITIES.some((a) => !inRange(toInt(draft.abilities[a.id]), 1, 30))) errors.push('Ability scores must be 1 to 30.')
+
+  const save = () => {
+    if (errors.length) return
+    saveBuild({
+      name: draft.name.trim() || 'Adventurer',
+      classId: draft.classId,
+      subclassId: draft.subclassId || null,
+      level: toInt(draft.level),
+      maxHp: toInt(draft.maxHp),
+      abilities: Object.fromEntries(ABILITIES.map((a) => [a.id, toInt(draft.abilities[a.id])])) as Record<
+        AbilityName,
+        number
+      >,
+      spells: draft.spells,
+      spellModifiers: draft.spellModifiers,
+    })
+    onDone()
+  }
+
+  const addSpell = () => {
+    const name = newSpell.name.trim()
+    if (!name) return
+    const lower = name.toLowerCase()
+    update({ spells: [...draft.spells.filter((s) => s.name.toLowerCase() !== lower), { ...newSpell, name }] })
+    setNewSpell(emptySpell())
+  }
+
+  return (
+    <main className="mx-auto flex max-w-xl flex-col gap-4 p-4 pb-16">
+      <h1 className="text-2xl font-bold">{initial ? 'Edit character' : 'New character'}</h1>
+
+      <fieldset className="fieldset">
+        <legend className="fieldset-legend">Name</legend>
+        <input className="input w-full" value={draft.name} onChange={(e) => update({ name: e.target.value })} />
+      </fieldset>
+
+      <div className="grid grid-cols-2 gap-3">
+        <fieldset className="fieldset">
+          <legend className="fieldset-legend">Class</legend>
+          <select
+            className="select w-full"
+            value={draft.classId}
+            onChange={(e) =>
+              update({
+                classId: e.target.value,
+                subclassId: subclassOptions(e.target.value)[0]?.id ?? '',
+                spellModifiers: [],
+              })
+            }
+          >
+            {classOptions.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </fieldset>
+        <fieldset className="fieldset">
+          <legend className="fieldset-legend">Subclass</legend>
+          <select
+            className="select w-full"
+            value={draft.subclassId}
+            onChange={(e) => update({ subclassId: e.target.value })}
+          >
+            <option value="">None</option>
+            {subclasses.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </fieldset>
+        <fieldset className="fieldset">
+          <legend className="fieldset-legend">Level</legend>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={10}
+            className="input w-full"
+            value={draft.level}
+            onChange={(e) => update({ level: e.target.value })}
+          />
+        </fieldset>
+        <fieldset className="fieldset">
+          <legend className="fieldset-legend">Max HP</legend>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            className="input w-full"
+            value={draft.maxHp}
+            onChange={(e) => update({ maxHp: e.target.value })}
+          />
+        </fieldset>
+      </div>
+
+      <fieldset className="fieldset">
+        <legend className="fieldset-legend">Ability scores</legend>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          {ABILITIES.map((a) => (
+            <label key={a.id} className="flex flex-col items-center gap-1 text-xs font-semibold">
+              {a.label}
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={30}
+                className="input w-full text-center"
+                value={draft.abilities[a.id]}
+                onChange={(e) => update({ abilities: { ...draft.abilities, [a.id]: e.target.value } })}
+              />
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      {modifiers.options.length > 0 && (
+        <fieldset className="fieldset">
+          <legend className="fieldset-legend">{modifiers.name}</legend>
+          <div className="grid grid-cols-2 gap-1">
+            {modifiers.options.map((m) => (
+              <label key={m.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-sm"
+                  checked={draft.spellModifiers.includes(m.id)}
+                  onChange={() =>
+                    update({
+                      spellModifiers: draft.spellModifiers.includes(m.id)
+                        ? draft.spellModifiers.filter((x) => x !== m.id)
+                        : [...draft.spellModifiers, m.id],
+                    })
+                  }
+                />
+                {m.name} ({m.cost})
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
+      <fieldset className="fieldset">
+        <legend className="fieldset-legend">Your spells</legend>
+        <p className="text-xs opacity-60">Spells your class or subclass always has are added for you.</p>
+        {draft.spells.length > 0 && (
+          <ul className="flex flex-col gap-1">
+            {draft.spells.map((s) => (
+              <li key={s.name} className="flex items-center justify-between rounded-box bg-base-200 px-3 py-1 text-sm">
+                <span>
+                  {s.name}{' '}
+                  <span className="opacity-60">
+                    ({s.level === 0 ? 'cantrip' : `L${s.level}`}, {s.castingTime}
+                    {s.concentration ? ', conc.' : ''})
+                  </span>
+                </span>
+                <button
+                  className="btn btn-ghost btn-xs"
+                  onClick={() => update({ spells: draft.spells.filter((x) => x !== s) })}
+                  aria-label={`Remove ${s.name}`}
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-2 flex flex-col gap-2 rounded-box border border-base-300 p-3">
+          <div className="flex gap-2">
+            <input
+              className="input flex-1"
+              placeholder="Spell name"
+              value={newSpell.name}
+              onChange={(e) => setNewSpell({ ...newSpell, name: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && addSpell()}
+            />
+            <select
+              className="select w-28"
+              value={newSpell.level}
+              onChange={(e) => setNewSpell({ ...newSpell, level: toInt(e.target.value) })}
+              aria-label="Spell level"
+            >
+              {Array.from({ length: 10 }, (_, l) => (
+                <option key={l} value={l}>
+                  {l === 0 ? 'Cantrip' : `Level ${l}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <select
+            className="select w-full"
+            value={newSpell.castingTime}
+            onChange={(e) => setNewSpell({ ...newSpell, castingTime: e.target.value as CastingTime })}
+            aria-label="Casting time"
+          >
+            {CASTING_TIMES.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <div className="flex flex-wrap gap-4 text-sm">
+            {(['concentration', 'ritual', 'upcast'] as const).map((flag) => (
+              <label key={flag} className="flex cursor-pointer items-center gap-2 capitalize">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-sm"
+                  checked={newSpell[flag]}
+                  onChange={(e) => setNewSpell({ ...newSpell, [flag]: e.target.checked })}
+                />
+                {flag}
+              </label>
+            ))}
+          </div>
+          <button className="btn btn-sm btn-secondary" onClick={addSpell} disabled={!newSpell.name.trim()}>
+            Add spell
+          </button>
+        </div>
+      </fieldset>
+
+      {errors.length > 0 && (
+        <ul className="text-sm text-error">
+          {errors.map((e) => (
+            <li key={e}>{e}</li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex gap-2">
+        {initial && (
+          <button className="btn btn-ghost" onClick={onDone}>
+            Cancel
+          </button>
+        )}
+        <button className="btn btn-primary flex-1" onClick={save} disabled={errors.length > 0}>
+          {initial ? 'Save' : 'Create character'}
+        </button>
+      </div>
+
+      {initial && (
+        <button
+          className="btn btn-error btn-outline btn-sm mt-6"
+          onClick={() => {
+            if (window.confirm(`Delete ${initial.name}? This can't be undone.`)) {
+              deleteCharacter()
+              onDone()
+            }
+          }}
+        >
+          Delete character
+        </button>
+      )}
+    </main>
+  )
+}

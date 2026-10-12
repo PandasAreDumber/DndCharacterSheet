@@ -64,6 +64,7 @@ export const sorcerer: ClassDef = {
   name: 'Sorcerer',
   hitDie: 6,
   slotTable: FULL_CASTER_SLOTS,
+  spellModifierName: 'Metamagic',
   resources: [
     {
       id: 'innate_sorcery',

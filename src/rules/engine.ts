@@ -1,7 +1,7 @@
 // The rules engine. Pure functions: (build, state, event) -> new state.
 // Every state change is an event in a log, so undo is just dropping the last event.
 
-import { currentOf, getAction, getActions, getResource, getResources, getSpellModifiers, resolveText } from './character'
+import { canAfford, currentOf, getAction, getActions, getResource, getResources, getSpellModifiers, resolveText } from './character'
 import type {
   ActionDef,
   CharacterBuild,
@@ -112,12 +112,9 @@ function resolvePerform(
     costs.push({ resource: action.variableCost.resource, amount })
   }
 
-  const totals = new Map<string, number>()
-  for (const c of costs) totals.set(c.resource, (totals.get(c.resource) ?? 0) + c.amount)
-  for (const [resource, amount] of totals) {
-    if (currentOf(build, state, resource) < amount) {
-      return no(`Not enough ${getResource(build, resource)?.name ?? resource}`)
-    }
+  if (!canAfford(build, state, costs)) {
+    const short = costs.find((c) => !canAfford(build, state, costs.filter((x) => x.resource === c.resource)))
+    return no(`Not enough ${short ? (getResource(build, short.resource)?.name ?? short.resource) : 'resources'}`)
   }
   for (const g of payment.gains ?? []) {
     if (!getResource(build, g.resource)) return no(`You don't have ${g.resource}`)
@@ -215,10 +212,12 @@ export function checkEvent(build: CharacterBuild, state: CharacterState, ev: Gam
       return checkPerform(build, state, ev)
     case 'USE_ECONOMY':
       return state.turn[ev.economy] ? fail(`${ECONOMY_LABEL[ev.economy]} already used`) : ok()
-    case 'SPEND_HIT_DICE':
-      if (!Number.isInteger(ev.count) || ev.count < 1) return fail('Spend at least one die')
-      if (!isNonNegInt(ev.healing)) return fail('Healing must be a whole number')
-      return currentOf(build, state, 'hit_dice') >= ev.count ? ok() : fail('Not enough hit point dice')
+    case 'SHORT_REST': {
+      if (!ev.hitDice) return ok()
+      const { count, healing } = ev.hitDice
+      if (!isNonNegInt(count) || !isNonNegInt(healing)) return fail('Use whole numbers')
+      return currentOf(build, state, 'hit_dice') >= count ? ok() : fail('Not enough hit point dice')
+    }
     case 'DAMAGE':
     case 'HEAL':
     case 'SET_TEMP_HP':
@@ -226,7 +225,6 @@ export function checkEvent(build: CharacterBuild, state: CharacterState, ev: Gam
     case 'END_EFFECT':
       return state.effects.some((e) => e.id === ev.effectId) ? ok() : fail('No such effect')
     case 'NEW_TURN':
-    case 'SHORT_REST':
     case 'LONG_REST':
       return ok()
   }
@@ -242,16 +240,17 @@ export function applyEvent(build: CharacterBuild, state: CharacterState, ev: Gam
       return { ...cleared, turn: { ...cleared.turn, [ev.economy]: true } }
     case 'NEW_TURN':
       return { ...state, turn: freshTurn() }
-    case 'SHORT_REST':
-      return applyRest(build, state, 'short')
+    case 'SHORT_REST': {
+      if (!ev.hitDice || ev.hitDice.count === 0) return applyRest(build, state, 'short')
+      const spent: CharacterState = {
+        ...state,
+        expended: { ...state.expended, hit_dice: (state.expended.hit_dice ?? 0) + ev.hitDice.count },
+        hp: { ...state.hp, current: Math.min(build.maxHp, state.hp.current + ev.hitDice.healing) },
+      }
+      return applyRest(build, spent, 'short')
+    }
     case 'LONG_REST':
       return applyRest(build, state, 'long')
-    case 'SPEND_HIT_DICE':
-      return {
-        ...state,
-        expended: { ...state.expended, hit_dice: (state.expended.hit_dice ?? 0) + ev.count },
-        hp: { ...state.hp, current: Math.min(build.maxHp, state.hp.current + ev.healing) },
-      }
     case 'DAMAGE': {
       const fromTemp = Math.min(state.hp.temp, ev.amount)
       return {
@@ -287,6 +286,19 @@ export function dispatch(
 
 export function undo(tracker: Tracker): Tracker {
   return { ...tracker, log: tracker.log.slice(0, -1) }
+}
+
+/**
+ * Use when the player edits their build. Keeps what's been spent so far.
+ * Changing class starts fresh, since the old resources don't exist anymore.
+ */
+export function changeBuild(oldBuild: CharacterBuild, newBuild: CharacterBuild, tracker: Tracker): Tracker {
+  if (oldBuild.classId !== newBuild.classId) return newTracker(newBuild)
+  const { base } = compact(oldBuild, tracker)
+  return {
+    base: { ...base, hp: { ...base.hp, current: Math.min(base.hp.current, newBuild.maxHp) } },
+    log: [],
+  }
 }
 
 /**

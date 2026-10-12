@@ -140,6 +140,8 @@ export type ClassDef = FeatureSet & {
   id: string
   name: string
   hitDie: number
+  /** What this class calls its spell modifiers in the UI, e.g. "Metamagic". */
+  spellModifierName?: string
   /** Row i = class level i + 1, column j = slots of level j + 1. */
   slotTable: number[][]
 }
@@ -189,9 +191,9 @@ export type GameEvent =
     }
   | { type: 'USE_ECONOMY'; economy: 'action' | 'bonus' | 'reaction' } // e.g. an attack
   | { type: 'NEW_TURN' }
-  | { type: 'SHORT_REST' }
+  /** Hit point dice are spent as part of the short rest. Player rolls and types the total healing. */
+  | { type: 'SHORT_REST'; hitDice?: { count: number; healing: number } }
   | { type: 'LONG_REST' }
-  | { type: 'SPEND_HIT_DICE'; count: number; healing: number } // player rolls, types the total
   | { type: 'DAMAGE'; amount: number }
   | { type: 'HEAL'; amount: number }
   | { type: 'SET_TEMP_HP'; amount: number }
