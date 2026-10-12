@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { CharacterView } from '../store/selectors'
+import { firebaseConfigured, useAccountStore } from '../store/cloudSync'
 
 function UserIcon() {
   return (
@@ -23,6 +24,10 @@ export function SiteHeader({
   onSettingsPage: boolean
 }) {
   const hp = character?.state.hp
+  const uid = useAccountStore((s) => s.uid)
+  const email = useAccountStore((s) => s.email)
+  const signIn = useAccountStore((s) => s.signIn)
+  const signOut = useAccountStore((s) => s.signOut)
   const menu = useRef<HTMLDetailsElement>(null)
 
   // <details> dropdowns stay open on their own; close the menu when tapping anywhere else.
@@ -63,16 +68,18 @@ export function SiteHeader({
             <UserIcon />
           </summary>
           <ul className="menu dropdown-content z-30 mt-2 w-52 rounded-box bg-base-100 p-2 text-base-content shadow-lg">
-            <li className="menu-disabled">
-              <span className="flex justify-between">
-                Log in <span className="badge badge-ghost badge-sm">Working on it</span>
-              </span>
-            </li>
-            <li className="menu-disabled">
-              <span className="flex justify-between">
-                Log out <span className="badge badge-ghost badge-sm">Working on it</span>
-              </span>
-            </li>
+            {uid ? (
+              <>
+                <li className="menu-disabled"><span className="truncate text-xs">{email ?? 'Signed in'}</span></li>
+                <li><button onClick={() => { if (menu.current) menu.current.open = false; void signOut() }}>Log out</button></li>
+              </>
+            ) : (
+              <li>
+                <button disabled={!firebaseConfigured} onClick={() => { if (menu.current) menu.current.open = false; void signIn() }}>
+                  Log in with Google
+                </button>
+              </li>
+            )}
             <li className={onSettingsPage ? 'menu-disabled' : ''}>
               <button
                 disabled={onSettingsPage}

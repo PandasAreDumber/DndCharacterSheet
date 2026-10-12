@@ -2,10 +2,46 @@
 // and turns UI intents into engine events. No rules math happens here.
 
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import { abilityMod } from '../rules/abilities'
 import { changeBuild, compact, dispatch, newTracker, undo } from '../rules/engine'
 import type { CharacterBuild, GameEvent, Spell, Tracker } from '../rules/types'
+
+export type CharacterData = { build: CharacterBuild | null; tracker: Tracker | null }
+export type LocalCharacter = { data: CharacterData; dirty: boolean }
+
+export const GUEST_KEY = 'dnd-combat-tracker'
+export const userKey = (uid: string) => `dnd-combat-tracker-user-${uid}`
+const emptyCharacter = (): CharacterData => ({ build: null, tracker: null })
+
+// Existing guest saves use Zustand's old { state, version } shape.
+export function readLocalCharacter(key: string): LocalCharacter {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return { data: emptyCharacter(), dirty: false }
+    const saved = JSON.parse(raw) as {
+      version?: number
+      state?: CharacterData
+      data?: CharacterData
+      dirty?: boolean
+    }
+    const data = saved.data ?? saved.state
+    if (!data || !('build' in data) || !('tracker' in data)) throw new Error('Invalid save')
+    let build = data.build
+    if (build && (saved.version ?? 0) < 2) build = { ...build, speciesId: null, lineageId: null }
+    if (build && (saved.version ?? 0) < 3) build = { ...build, ac: 10 + abilityMod(build.abilities.dex) }
+    return { data: { build, tracker: data.tracker }, dirty: !!saved.dirty }
+  } catch {
+    return { data: emptyCharacter(), dirty: false }
+  }
+}
+
+export function writeLocalCharacter(key: string, data: CharacterData, dirty: boolean): void {
+  try {
+    localStorage.setItem(key, JSON.stringify({ version: 3, data, dirty }))
+  } catch {
+    // Browser storage may be unavailable or full. Firestore can still save signed-in data.
+  }
+}
 
 // Keep the log short enough to replay quickly. Older events get folded into the base.
 const MAX_LOG = 300
@@ -47,11 +83,15 @@ type CharacterStore = {
 let messageId = 0
 const message = (kind: Message['kind'], text: string): Message => ({ kind, text, id: ++messageId })
 
-export const useCharacterStore = create<CharacterStore>()(
-  persist(
-    (set, get) => ({
-      build: null,
-      tracker: null,
+let storageKey = GUEST_KEY
+let dirty = false
+let switching = false
+const initial = readLocalCharacter(GUEST_KEY)
+const listeners = new Set<(data: CharacterData) => void>()
+
+export const useCharacterStore = create<CharacterStore>()((set, get) => ({
+      build: initial.data.build,
+      tracker: initial.data.tracker,
       message: null,
 
       saveBuild: (build) => {
@@ -119,24 +159,34 @@ export const useCharacterStore = create<CharacterStore>()(
         if (tracker && tracker.log.length > 0) set({ tracker: undo(tracker), message: null })
       },
       clearMessage: () => set({ message: null }),
-    }),
-    {
-      name: 'dnd-combat-tracker',
-      version: 3,
-      // Saves from older versions of the app get the fields they're missing.
-      migrate: (persisted, version) => {
-        const saved = persisted as { build: CharacterBuild | null; tracker: Tracker | null }
-        if (version < 2 && saved.build) {
-          saved.build = { ...saved.build, speciesId: null, lineageId: null }
-        }
-        if (version < 3 && saved.build) {
-          // AC wasn't tracked before. Start at unarmored AC (10 + DEX); the player can fix it in Edit.
-          saved.build = { ...saved.build, ac: 10 + abilityMod(saved.build.abilities.dex) }
-        }
-        return saved
-      },
-      // Only the data is saved. Messages are temporary.
-      partialize: (s) => ({ build: s.build, tracker: s.tracker }),
-    },
-  ),
-)
+    }))
+
+useCharacterStore.subscribe((state, previous) => {
+  if (switching || (state.build === previous.build && state.tracker === previous.tracker)) return
+  const data = { build: state.build, tracker: state.tracker }
+  dirty = storageKey !== GUEST_KEY
+  writeLocalCharacter(storageKey, data, dirty)
+  for (const listener of listeners) listener(data)
+})
+
+/** Switch the visible character and its local save together, without crossing accounts. */
+export function activateCharacterStorage(key: string, saved = readLocalCharacter(key)): void {
+  switching = true
+  storageKey = key
+  dirty = saved.dirty
+  useCharacterStore.setState({ ...saved.data, message: null })
+  writeLocalCharacter(key, saved.data, dirty)
+  switching = false
+}
+
+export function markCharacterSynced(data: CharacterData): void {
+  const current = useCharacterStore.getState()
+  if (current.build !== data.build || current.tracker !== data.tracker) return
+  dirty = false
+  writeLocalCharacter(storageKey, data, false)
+}
+
+export function subscribeCharacterChanges(listener: (data: CharacterData) => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
