@@ -86,7 +86,7 @@ export const paladin: ClassDef = {
   ],
   grantedSpells: [
     {
-      spell: spell('Divine Smite', 1, { castingTime: 'bonus', upcast: true }),
+      spell: spell('Divine Smite', 1, { range: 'Self', castingTime: 'bonus', upcast: true }),
       minLevel: 2,
       note: 'Right after hitting with a melee weapon or unarmed strike. 2d8 radiant, +1d8 per slot level above 1st.',
       extraPayments: [
@@ -99,7 +99,7 @@ export const paladin: ClassDef = {
       ],
     },
     {
-      spell: spell('Find Steed', 2, { upcast: true }),
+      spell: spell('Find Steed', 2, { range: '30 ft', upcast: true }),
       minLevel: 5,
       extraPayments: [
         {
