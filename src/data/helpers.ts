@@ -63,6 +63,18 @@ export function innateSpell(s: Spell, minLevel: number, resource?: string, freeL
   }
 }
 
+/**
+ * Like innateSpell, but the free payment's id is unique to `resource`. Use it when the same spell
+ * could also be granted by something else (feats), so the two free casts don't clash when merged.
+ */
+export function freeSpell(s: Spell, resource: string, label: string, minLevel = 1): GrantedSpell {
+  return {
+    spell: s,
+    minLevel,
+    extraPayments: [{ id: `free_${resource}`, label: `Free (${label})`, costs: [{ resource, amount: 1 }], castLevel: s.level }],
+  }
+}
+
 /** One action per payment: costs 1 of `resource`. */
 export function limitedAction(
   id: string,
