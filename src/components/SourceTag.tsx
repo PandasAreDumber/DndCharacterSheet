@@ -1,6 +1,11 @@
 import type { FeatureSource } from '../rules/types'
 
-const KIND_LABEL: Record<FeatureSource['kind'], string> = { class: 'Class', subclass: 'Subclass', species: 'Species' }
+const KIND_LABEL: Record<FeatureSource['kind'], string> = {
+  class: 'Class',
+  subclass: 'Subclass',
+  species: 'Species',
+  feat: 'Feat',
+}
 
 function SourceIcon({ kind }: { kind: FeatureSource['kind'] }) {
   const common = {
@@ -29,6 +34,15 @@ function SourceIcon({ kind }: { kind: FeatureSource['kind'] }) {
       </svg>
     )
   }
+  if (kind === 'feat') {
+    // Medal
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="15" r="5" />
+        <path d="M9 10.5L6 3h4l2 4 2-4h4l-3 7.5" />
+      </svg>
+    )
+  }
   // Person
   return (
     <svg {...common}>
@@ -38,7 +52,7 @@ function SourceIcon({ kind }: { kind: FeatureSource['kind'] }) {
   )
 }
 
-/** Small tag showing where a feature comes from: class, subclass or species. */
+/** Small tag showing where a feature comes from: class, subclass, species or feat. */
 export function SourceTag({ source }: { source: FeatureSource }) {
   const label = `${KIND_LABEL[source.kind]}: ${source.name}`
   return (

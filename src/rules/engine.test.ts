@@ -406,6 +406,34 @@ describe('effects', () => {
     expect(h.effects.map((e) => e.duration)).toEqual(['Concentration, 1 minute'])
   })
 
+  it('spells that last longer than a round show up as effects, instant ones do not', () => {
+    const b: CharacterBuild = {
+      ...paladin(5),
+      spells: [
+        spell('Fire Bolt', 0, { duration: 'Instantaneous' }),
+        spell('Blade Ward', 0, { duration: '1 round' }),
+        spell('Shield of Faith', 1, { concentration: true, duration: '10 minutes' }),
+      ],
+    }
+    const s = currentState(
+      b,
+      run(b, [
+        cast('spell:shield-of-faith', 'slot_1'),
+        { type: 'NEW_TURN' },
+        cast('spell:magic-weapon', 'slot_2'),
+        { type: 'NEW_TURN' },
+        cast('spell:fire-bolt', 'cantrip'),
+        { type: 'NEW_TURN' },
+        cast('spell:blade-ward', 'cantrip'),
+      ]),
+    )
+    // Magic Weapon (1 hour, no concentration) doesn't end concentration on Shield of Faith.
+    expect(s.effects.map((e) => [e.name, e.duration, e.concentration])).toEqual([
+      ['Shield of Faith', 'Concentration, 10 minutes', true],
+      ['Magic Weapon', '1 hour', false],
+    ])
+  })
+
   it('effects get a resolved duration and can be ended', () => {
     const b = sorcerer(3)
     const t = run(b, [cast('telepathic_speech', 'free')])

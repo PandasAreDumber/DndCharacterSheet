@@ -12,9 +12,9 @@ const CASTING_TIMES: { id: CastingTime; label: string }[] = [
 const RANGES = ['Self', 'Touch', '30 ft', '60 ft', '120 ft']
 const DURATIONS = ['Instantaneous', '1 round', '1 minute', '10 minutes', '1 hour']
 
-const emptySpell = (castingTime: CastingTime): Spell => ({
+const emptySpell = (castingTime: CastingTime, level = 1): Spell => ({
   name: '',
-  level: 1,
+  level,
   castingTime,
   concentration: false,
   ritual: false,
@@ -29,12 +29,15 @@ export function SpellForm({
   onAdd,
   defaultCastingTime = 'action',
   autoFocus = false,
+  fixedLevel,
 }: {
   onAdd: (spell: Spell) => void
   defaultCastingTime?: CastingTime
   autoFocus?: boolean
+  /** Lock the level and hide the level picker (a feat that gives "one level 1 spell"). */
+  fixedLevel?: number
 }) {
-  const [spell, setSpell] = useState<Spell>(() => emptySpell(defaultCastingTime))
+  const [spell, setSpell] = useState<Spell>(() => emptySpell(defaultCastingTime, fixedLevel))
   const set = (patch: Partial<Spell>) => setSpell((s) => ({ ...s, ...patch }))
   const canAdd = spell.name.trim().length > 0
 
@@ -51,7 +54,7 @@ export function SpellForm({
       ...(duration ? { duration } : {}),
       ...(note ? { note } : {}),
     })
-    setSpell(emptySpell(spell.castingTime)) // keep the casting time for adding several in a row
+    setSpell(emptySpell(spell.castingTime, fixedLevel)) // keep the casting time for adding several in a row
   }
 
   return (
@@ -66,18 +69,20 @@ export function SpellForm({
           onChange={(e) => set({ name: e.target.value })}
           onKeyDown={(e) => e.key === 'Enter' && add()}
         />
-        <select
-          className="select w-28"
-          value={spell.level}
-          onChange={(e) => set({ level: Number.parseInt(e.target.value, 10) })}
-          aria-label="Spell level"
-        >
-          {Array.from({ length: 10 }, (_, l) => (
-            <option key={l} value={l}>
-              {l === 0 ? 'Cantrip' : `Level ${l}`}
-            </option>
-          ))}
-        </select>
+        {fixedLevel === undefined && (
+          <select
+            className="select w-28"
+            value={spell.level}
+            onChange={(e) => set({ level: Number.parseInt(e.target.value, 10) })}
+            aria-label="Spell level"
+          >
+            {Array.from({ length: 10 }, (_, l) => (
+              <option key={l} value={l}>
+                {l === 0 ? 'Cantrip' : `Level ${l}`}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div className="join w-full" role="radiogroup" aria-label="Casting time">
@@ -87,7 +92,7 @@ export function SpellForm({
             type="button"
             role="radio"
             aria-checked={spell.castingTime === c.id}
-            className={`btn btn-sm join-item flex-1 ${spell.castingTime === c.id ? 'btn-active btn-neutral' : ''}`}
+            className={`btn btn-sm join-item min-w-0 flex-1 px-1 ${spell.castingTime === c.id ? 'btn-active btn-neutral' : ''}`}
             onClick={() => set({ castingTime: c.id })}
           >
             {c.label}

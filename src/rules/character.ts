@@ -1,12 +1,16 @@
 // Turns a CharacterBuild + class data into the resources, actions and passives the character has right now.
 
 import { BASIC_ACTIONS } from '../data/basicActions'
-import { CLASSES, SPECIES, SUBCLASSES } from '../data/registry'
+import { freeSpell, uses } from '../data/helpers'
+import { CLASSES, FEATS, SPECIES, SUBCLASSES } from '../data/registry'
 import { SPELL_SUMMARIES } from '../data/spellSummaries'
 import type {
   ActionDef,
   CastingTime,
   CharacterBuild,
+  EffectDef,
+  FeatDef,
+  FeatPick,
   CharacterState,
   ClassDef,
   FeatureSource,
@@ -56,8 +60,33 @@ function sourcedSets(build: CharacterBuild): SourcedSet[] {
     sub && sub.classId === cls.id ? { set: sub, source: { kind: 'subclass', name: sub.name } } : undefined,
     species ? { set: species, source: { kind: 'species', name: species.name } } : undefined,
     species && lineage ? { set: lineage, source: { kind: 'species', name: species.name } } : undefined,
+    ...(build.feats ?? []).map((pick): SourcedSet | undefined => {
+      const feat = FEATS[pick.id]
+      return feat ? { set: featSet(feat, pick), source: { kind: 'feat', name: feat.name } } : undefined
+    }),
   ]
   return sets.filter((s): s is SourcedSet => !!s)
+}
+
+/**
+ * A feat's features plus the spells the player chose for it. A chosen leveled spell gets its own
+ * once-per-long-rest free cast when the feat says so (Magic Initiate, Fey Touched).
+ */
+export function featSet(feat: FeatDef, pick: FeatPick): FeatureSet {
+  const resources = [...feat.resources]
+  const grantedSpells = [...feat.grantedSpells]
+  for (const s of pick.spells ?? []) {
+    const choice = feat.spellChoices?.find((c) => c.level === s.level)
+    if (!choice) continue
+    if (choice.freeUse && s.level > 0) {
+      const resource = `feat_${feat.id}_${spellActionId(s.name).slice('spell:'.length)}`
+      resources.push(uses(resource, `${feat.name}: ${s.name}`))
+      grantedSpells.push(freeSpell(s, resource, feat.name))
+    } else {
+      grantedSpells.push({ spell: s, minLevel: 1 })
+    }
+  }
+  return { ...feat, resources, grantedSpells }
 }
 
 function featureSets(build: CharacterBuild): FeatureSet[] {
@@ -125,6 +154,26 @@ function economyFor(castingTime: CastingTime): Economy {
   return castingTime === 'other' ? 'free' : castingTime
 }
 
+// Durations too short to be worth tracking in the Active effects list.
+const SHORT_DURATIONS = new Set(['instantaneous', '1 round'])
+
+/**
+ * The Active effect a spell starts: every concentration spell, plus any other spell that lasts
+ * longer than a round (Magic Weapon, Longstrider). Instant spells like Fire Bolt start nothing.
+ */
+export function spellEffect(spell: Spell): EffectDef | undefined {
+  if (spell.concentration) {
+    return {
+      name: spell.name,
+      duration: spell.duration ? `Concentration, ${spell.duration}` : 'Concentration',
+      concentration: true,
+    }
+  }
+  const duration = spell.duration?.trim()
+  if (!duration || SHORT_DURATIONS.has(duration.toLowerCase())) return undefined
+  return { name: spell.name, duration }
+}
+
 function spellAction(
   build: CharacterBuild,
   spell: Spell,
@@ -143,21 +192,14 @@ function spellAction(
             castLevel: r.slotLevel,
           }))
   const finalNote = note ?? spell.note ?? SPELL_SUMMARIES[spell.name.toLowerCase()]
+  const effect = spellEffect(spell)
   return {
     id: spellActionId(spell.name),
     name: spell.name,
     economy: economyFor(spell.castingTime),
     payments: [...payments, ...extraPayments],
     spell,
-    ...(spell.concentration
-      ? {
-          effect: {
-            name: spell.name,
-            duration: spell.duration ? `Concentration, ${spell.duration}` : 'Concentration',
-            concentration: true,
-          },
-        }
-      : {}),
+    ...(effect ? { effect } : {}),
     ...(finalNote !== undefined ? { note: finalNote } : {}),
   }
 }
@@ -174,8 +216,17 @@ export function getActions(build: CharacterBuild): ActionDef[] {
   const seen = new Set<string>()
   for (const { set, source } of sets) {
     for (const g of set.grantedSpells.filter(has)) {
+      const id = spellActionId(g.spell.name)
+      const existing = spells.findIndex((a) => a.id === id)
+      if (existing >= 0) {
+        // Granted twice (a feat and a subclass): keep one card with both sets of free casts.
+        const a = spells[existing]!
+        const extra = (g.extraPayments ?? []).filter((p) => !a.payments.some((q) => q.id === p.id))
+        spells[existing] = { ...a, payments: [...a.payments, ...extra] }
+        continue
+      }
       spells.push(withSource(spellAction(build, g.spell, g.extraPayments, g.note), source))
-      seen.add(spellActionId(g.spell.name))
+      seen.add(id)
     }
   }
   for (const s of build.spells) {

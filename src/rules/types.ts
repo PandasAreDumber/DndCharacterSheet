@@ -32,7 +32,14 @@ export type CharacterBuild = {
   ac: number // Armor Class, typed in by the player (armor, shields and magic items aren't tracked)
   spells: Spell[] // spells the player added themselves
   spellModifiers: string[] // chosen options like Metamagic, by id
+  /** 2024 background. Its Origin feat is also in `feats`. Optional for older saves. */
+  backgroundId?: string | null
+  /** Feats the player picked. Optional so saves from before feats existed still load. */
+  feats?: FeatPick[]
 }
+
+/** A feat the player picked, plus any spells they chose for it (Magic Initiate, Fey Touched). */
+export type FeatPick = { id: string; spells?: Spell[] }
 
 export type Formula = (build: CharacterBuild) => number
 export type TextFormula = string | ((build: CharacterBuild) => string)
@@ -96,7 +103,7 @@ export type EffectDef = {
 }
 
 /** Where a feature comes from, so the UI can tag it. Set by the engine, not in the data files. */
-export type FeatureSource = { kind: 'class' | 'subclass' | 'species'; name: string }
+export type FeatureSource = { kind: 'class' | 'subclass' | 'species' | 'feat'; name: string }
 
 export type ActionDef = {
   id: string
@@ -264,3 +271,37 @@ export type Tracker = {
 }
 
 export type Check = { ok: true; warnings: string[] } | { ok: false; reason: string }
+
+// ---------- Feats ----------
+
+export type FeatCategory = 'origin' | 'general' | 'fightingStyle'
+
+/** Spells the player picks for a feat. Leveled ones can get a free cast once per long rest. */
+export type FeatSpellChoice = {
+  level: number
+  count: number
+  /** What they can pick, shown in the setup form ("a level 1 Divination or Enchantment spell"). */
+  hint: string
+  /** Each chosen spell can be cast once per long rest without a slot. */
+  freeUse?: boolean
+}
+
+export type FeatDef = FeatureSet & {
+  id: string
+  name: string
+  category: FeatCategory
+  /** Shown as a label only. The app doesn't stop you from taking the feat. */
+  prerequisite?: string
+  /** One or two lines for the feat picker. */
+  summary: string
+  spellChoices?: FeatSpellChoice[]
+}
+
+/** A background only matters here for the Origin feat it gives. */
+export type BackgroundDef = {
+  id: string
+  name: string
+  featId: string
+  /** Which version of the feat (Magic Initiate: "Cleric spells"). */
+  featNote?: string
+}
