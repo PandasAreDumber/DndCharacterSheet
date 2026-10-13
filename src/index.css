@@ -1,4 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
 @import "tailwindcss";
+
+
+@theme {
+  --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
+}
 
 /* `dark:` classes apply in dark mode (the abyss theme), not based on the OS setting. */
 @custom-variant dark (&:where([data-theme="abyss"], [data-theme="abyss"] *));
