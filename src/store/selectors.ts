@@ -1,5 +1,6 @@
 // VIEWMODEL. Turns engine output into plain data the components can render directly.
 
+import { ALL_FEATS, FEAT_CATEGORIES } from '../data/feats'
 import { CLASSES, SPECIES, SUBCLASSES } from '../data/registry'
 import { abilityMod } from '../rules/abilities'
 import {
@@ -212,6 +213,20 @@ export const speciesOptions = Object.values(SPECIES).map((s) => ({
   name: s.name,
   lineageLabel: s.lineageLabel ?? 'Lineage',
   lineages: s.lineages.map((l) => ({ id: l.id, name: l.name })),
+}))
+
+/** Feats for the setup form, in their three lists (Origin, General, Fighting Style), sorted by name. */
+export const featGroups = FEAT_CATEGORIES.map((c) => ({
+  ...c,
+  feats: ALL_FEATS.filter((f) => f.category === c.id)
+    .map((f) => ({
+      id: f.id,
+      name: f.name,
+      summary: f.summary,
+      prerequisite: f.prerequisite ?? null,
+      spellChoices: f.spellChoices ?? [],
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name)),
 }))
 
 export function spellModifierOptions(classId: string) {

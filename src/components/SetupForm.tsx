@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import type { AbilityName, CharacterBuild, Spell } from '../rules/types'
+import type { AbilityName, CharacterBuild, FeatPick, Spell } from '../rules/types'
 import { useCharacterStore } from '../store/characterStore'
 import { classOptions, speciesOptions, spellModifierOptions, subclassLevel, subclassOptions } from '../store/selectors'
+import { FeatPicker } from './FeatPicker'
 import { SpellForm } from './SpellForm'
 
 const ABILITIES: { id: AbilityName; label: string }[] = [
@@ -26,6 +27,7 @@ type Draft = {
   abilities: Record<AbilityName, string>
   spells: Spell[]
   spellModifiers: string[]
+  feats: FeatPick[]
 }
 
 const firstClass = classOptions[0]?.id ?? ''
@@ -44,6 +46,7 @@ function toDraft(b: CharacterBuild | null): Draft {
       abilities: { str: '10', dex: '10', con: '10', int: '10', wis: '10', cha: '10' },
       spells: [],
       spellModifiers: [],
+      feats: [],
     }
   }
   return {
@@ -58,6 +61,7 @@ function toDraft(b: CharacterBuild | null): Draft {
     abilities: Object.fromEntries(ABILITIES.map((a) => [a.id, String(b.abilities[a.id])])) as Record<AbilityName, string>,
     spells: b.spells,
     spellModifiers: b.spellModifiers,
+    feats: b.feats ?? [],
   }
 }
 
@@ -102,6 +106,7 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
       >,
       spells: draft.spells,
       spellModifiers: draft.spellModifiers,
+      feats: draft.feats,
     })
     onDone()
   }
@@ -295,6 +300,8 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
           </details>
         </fieldset>
       )}
+
+      <FeatPicker value={draft.feats} onChange={(feats) => update({ feats })} />
 
       <fieldset className="fieldset rounded-box border border-accent/50 bg-accent/5 p-3">
         <legend className="fieldset-legend px-1 text-accent">Your spells</legend>
