@@ -1,7 +1,7 @@
 // VIEWMODEL. Turns engine output into plain data the components can render directly.
 
 import { ALL_FEATS, FEAT_CATEGORIES } from '../data/feats'
-import { CLASSES, SPECIES, SUBCLASSES } from '../data/registry'
+import { BACKGROUNDS, CLASSES, FEATS, SPECIES, SUBCLASSES } from '../data/registry'
 import { abilityMod } from '../rules/abilities'
 import {
   canAfford,
@@ -20,6 +20,7 @@ import { checkEvent, currentState } from '../rules/engine'
 import type {
   ActionDef,
   CharacterBuild,
+  FeatPick,
   CharacterState,
   Economy,
   FeatureSource,
@@ -214,6 +215,29 @@ export const speciesOptions = Object.values(SPECIES).map((s) => ({
   lineageLabel: s.lineageLabel ?? 'Lineage',
   lineages: s.lineages.map((l) => ({ id: l.id, name: l.name })),
 }))
+
+/** Backgrounds for the setup form, with the feat each one gives: "Magic Initiate (Cleric spells)". */
+export const backgroundOptions = Object.values(BACKGROUNDS)
+  .map((b) => ({
+    id: b.id,
+    name: b.name,
+    featId: b.featId,
+    featNote: b.featNote ?? null,
+    featLabel: `${FEATS[b.featId]?.name ?? b.featId}${b.featNote ? ` (${b.featNote})` : ''}`,
+  }))
+  .sort((a, b) => a.name.localeCompare(b.name))
+
+/**
+ * Changing background swaps its Origin feat in the picked feats. If both backgrounds give the
+ * same feat (Criminal → Guard) it stays, with any spells already chosen for it.
+ */
+export function swapBackgroundFeat(feats: FeatPick[], oldBackgroundId: string | null, newBackgroundId: string | null): FeatPick[] {
+  const oldFeat = oldBackgroundId ? BACKGROUNDS[oldBackgroundId]?.featId : undefined
+  const newFeat = newBackgroundId ? BACKGROUNDS[newBackgroundId]?.featId : undefined
+  if (oldFeat === newFeat) return feats
+  const kept = feats.filter((f) => f.id !== oldFeat)
+  return newFeat && !kept.some((f) => f.id === newFeat) ? [...kept, { id: newFeat }] : kept
+}
 
 /** Feats for the setup form, in their three lists (Origin, General, Fighting Style), sorted by name. */
 export const featGroups = FEAT_CATEGORIES.map((c) => ({

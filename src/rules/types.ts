@@ -32,6 +32,8 @@ export type CharacterBuild = {
   ac: number // Armor Class, typed in by the player (armor, shields and magic items aren't tracked)
   spells: Spell[] // spells the player added themselves
   spellModifiers: string[] // chosen options like Metamagic, by id
+  /** 2024 background. Its Origin feat is also in `feats`. Optional for older saves. */
+  backgroundId?: string | null
   /** Feats the player picked. Optional so saves from before feats existed still load. */
   feats?: FeatPick[]
 }
@@ -293,4 +295,13 @@ export type FeatDef = FeatureSet & {
   /** One or two lines for the feat picker. */
   summary: string
   spellChoices?: FeatSpellChoice[]
+}
+
+/** A background only matters here for the Origin feat it gives. */
+export type BackgroundDef = {
+  id: string
+  name: string
+  featId: string
+  /** Which version of the feat (Magic Initiate: "Cleric spells"). */
+  featNote?: string
 }

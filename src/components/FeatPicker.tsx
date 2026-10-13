@@ -7,7 +7,16 @@ import { SpellForm } from './SpellForm'
  * Pick any number of feats, sorted into their three lists. Nothing is locked by level or
  * prerequisite: those just show as labels. Feats that give a choice of spells ask for them here.
  */
-export function FeatPicker({ value, onChange }: { value: FeatPick[]; onChange: (feats: FeatPick[]) => void }) {
+export function FeatPicker({
+  value,
+  onChange,
+  fromBackground,
+}: {
+  value: FeatPick[]
+  onChange: (feats: FeatPick[]) => void
+  /** The feat the background gives. It's ticked and locked; change the background to change it. */
+  fromBackground?: { featId: string; name: string; featNote: string | null } | undefined
+}) {
   const picked = (id: string) => value.find((p) => p.id === id)
   // When editing a character, start with the lists you picked from open. Only decided once,
   // so unticking the last feat in a list doesn't snap it shut.
@@ -43,6 +52,7 @@ export function FeatPicker({ value, onChange }: { value: FeatPick[]; onChange: (
             <ul className="collapse-content flex flex-col gap-2">
               {group.feats.map((f) => {
                 const pick = picked(f.id)
+                const locked = fromBackground?.featId === f.id
                 return (
                   <li key={f.id} className={`rounded-box p-2 ${pick ? 'bg-info/10' : ''}`}>
                     <label className="flex cursor-pointer items-start gap-2">
@@ -50,12 +60,17 @@ export function FeatPicker({ value, onChange }: { value: FeatPick[]; onChange: (
                         type="checkbox"
                         className="checkbox checkbox-info checkbox-sm mt-0.5"
                         checked={!!pick}
+                        disabled={locked}
                         onChange={() => toggle(f.id)}
                       />
                       <span className="flex flex-col gap-0.5">
                         <span className="flex flex-wrap items-center gap-1 text-sm font-semibold">
                           {f.name}
-                          {f.prerequisite && <span className="badge badge-ghost badge-xs">{f.prerequisite}</span>}
+                          {locked ? (
+                            <span className="badge badge-info badge-xs">From {fromBackground.name} background</span>
+                          ) : (
+                            f.prerequisite && <span className="badge badge-ghost badge-xs">{f.prerequisite}</span>
+                          )}
                         </span>
                         <span className="text-xs opacity-70">{f.summary}</span>
                       </span>
@@ -64,7 +79,12 @@ export function FeatPicker({ value, onChange }: { value: FeatPick[]; onChange: (
                       f.spellChoices.map((choice) => (
                         <ChosenSpells
                           key={choice.level}
-                          choice={choice}
+                          // Magic Initiate from a background says which list: "Cleric spells".
+                          choice={
+                            locked && fromBackground.featNote
+                              ? { ...choice, hint: `${choice.hint}. ${fromBackground.name}: ${fromBackground.featNote}` }
+                              : choice
+                          }
                           spells={pick.spells ?? []}
                           onChange={(spells) => setSpells(f.id, spells)}
                         />

@@ -1,7 +1,15 @@
 import { useState } from 'react'
 import type { AbilityName, CharacterBuild, FeatPick, Spell } from '../rules/types'
 import { useCharacterStore } from '../store/characterStore'
-import { classOptions, speciesOptions, spellModifierOptions, subclassLevel, subclassOptions } from '../store/selectors'
+import {
+  backgroundOptions,
+  classOptions,
+  speciesOptions,
+  spellModifierOptions,
+  subclassLevel,
+  subclassOptions,
+  swapBackgroundFeat,
+} from '../store/selectors'
 import { FeatPicker } from './FeatPicker'
 import { SpellForm } from './SpellForm'
 
@@ -21,6 +29,7 @@ type Draft = {
   subclassId: string
   speciesId: string
   lineageId: string
+  backgroundId: string
   level: string
   maxHp: string
   ac: string
@@ -40,6 +49,7 @@ function toDraft(b: CharacterBuild | null): Draft {
       subclassId: '',
       speciesId: '',
       lineageId: '',
+      backgroundId: '',
       level: '1',
       maxHp: '',
       ac: '10',
@@ -55,6 +65,7 @@ function toDraft(b: CharacterBuild | null): Draft {
     subclassId: b.subclassId ?? '',
     speciesId: b.speciesId ?? '',
     lineageId: b.lineageId ?? '',
+    backgroundId: b.backgroundId ?? '',
     level: String(b.level),
     maxHp: String(b.maxHp),
     ac: String(b.ac),
@@ -77,6 +88,7 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
   const subclasses = subclassOptions(draft.classId)
   const modifiers = spellModifierOptions(draft.classId)
   const species = speciesOptions.find((s) => s.id === draft.speciesId)
+  const background = backgroundOptions.find((b) => b.id === draft.backgroundId)
   const hasLineage = !!species && species.lineages.length > 0
   const pickSubclassAt = subclassLevel(draft.classId)
   const level = toInt(draft.level)
@@ -97,6 +109,7 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
       subclassId: draft.subclassId || null,
       speciesId: draft.speciesId || null,
       lineageId: draft.lineageId || null,
+      backgroundId: draft.backgroundId || null,
       level: toInt(draft.level),
       maxHp: toInt(draft.maxHp),
       ac: toInt(draft.ac),
@@ -206,6 +219,27 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
           </fieldset>
         )}
         <fieldset className="fieldset">
+          <legend className="fieldset-legend">Background</legend>
+          <select
+            className="select w-full"
+            value={draft.backgroundId}
+            onChange={(e) =>
+              update({
+                backgroundId: e.target.value,
+                feats: swapBackgroundFeat(draft.feats, draft.backgroundId || null, e.target.value || null),
+              })
+            }
+          >
+            <option value="">None</option>
+            {backgroundOptions.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          {background && <p className="label text-xs">Gives {background.featLabel}</p>}
+        </fieldset>
+        <fieldset className="fieldset">
           <legend className="fieldset-legend">Level</legend>
           <input
             type="number"
@@ -301,7 +335,11 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
         </fieldset>
       )}
 
-      <FeatPicker value={draft.feats} onChange={(feats) => update({ feats })} />
+      <FeatPicker
+        value={draft.feats}
+        onChange={(feats) => update({ feats })}
+        fromBackground={background}
+      />
 
       <fieldset className="fieldset rounded-box border border-accent/50 bg-accent/5 p-3">
         <legend className="fieldset-legend px-1 text-accent">Your spells</legend>
