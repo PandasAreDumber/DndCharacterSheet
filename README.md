@@ -55,3 +55,17 @@ npm run test:run
 npm run lint
 npm run build
 ```
+
+## Spell list
+
+The searchable spell list (cantrips to level 3) is generated from the SRD 5.2 spell data in the
+[5e-bits/5e-database](https://github.com/5e-bits/5e-database) project (`src/2024/en/5e-SRD-Spells.json`, MIT).
+To rebuild it from a newer copy of that file:
+
+```bash
+node scripts/build-srd-spells.mjs path/to/5e-SRD-Spells.json
+```
+
+This work includes material from the System Reference Document 5.2 ("SRD 5.2") by Wizards of the Coast LLC,
+available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0
+International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.

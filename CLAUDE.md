@@ -67,9 +67,12 @@ Every action has:
 
 ### Spells
 
-* Do NOT hard code a full spell list. Players add their own spells.
-* Adding a spell has to be quick. Only `name` and `level` are required. `castingTime` defaults to `"action"`.
-* Later we'll add a search box backed by an SRD 5.2 spell JSON file (CC BY 4.0) that autofills fields. The custom form stays as a fallback for spells not in the SRD.
+* Characters never get spells automatically except the ones their class, subclass, species or feats grant. Players add the rest themselves.
+* Adding a spell has to be quick. The add-spell form leads with a **search box** over the bundled SRD 5.2 spell list (cantrips to level 3, `src/data/srdSpells.ts`). Tapping a result adds it with every field filled in. Search is **not limited by class** and there's no cap on how many spells a player adds; the class names in results are only a hint.
+* The hand-entry form stays as a fallback for spells not in the SRD (PHB-only spells, higher levels). Only `name` and `level` are required. `castingTime` defaults to `"action"`.
+* `src/data/srdSpells.ts` is **generated**. Don't edit it by hand: fix `scripts/build-srd-spells.mjs` and rerun it on the 5e-bits `5e-SRD-Spells.json` file (see `README.md`). The list is lazy-loaded, so it stays out of the main bundle.
+* **Licensing:** SRD 5.2 content is CC BY 4.0 and needs the attribution that's in the search box, the data file header and `README.md`. Don't copy text for spells (or anything else) that isn't in the SRD; write short summaries in our own words instead.
+* A spell added from search is a **copy** saved on the character, with its `srdId`. Fixing the list later doesn't change existing characters unless we add a refresh.
 
 ```ts
 type Spell = {
@@ -79,11 +82,24 @@ type Spell = {
   concentration: boolean
   ritual: boolean
   upcast: boolean
-  note?: string
+  range?: string             // "Self", "Touch", "60 ft", "Unlimited"
+  duration?: string          // without the word Concentration (that's the flag): "Instantaneous", "1 minute"
+  srdId?: string             // set when added from the SRD list
+  note?: string              // short facts shown on the card: "8d6 Fire · DEX save"
+  description?: string       // full SRD text, shown collapsed on the card
 }
 ```
 
 `castingTime` decides which list (Action / Bonus / Reaction) the spell shows up in. Casting a spell shows only the slot levels at or above the spell's level that still have slots left. Picking one spends it right away on screen.
+
+Casting a spell adds an Active effect when it's concentration, or when its duration is longer than "Instantaneous" or "1 round" (Magic Weapon, Longstrider). Instant spells like Fire Bolt don't.
+
+### Feats and backgrounds
+
+* Feats (`src/data/feats.ts`) are feature sets like species, in three lists: Origin, General and Fighting Style. Epic Boons are out of scope for now. Players can pick any number; prerequisites are shown as labels, not enforced.
+* Feats that matter in combat get resources and actions (Lucky, Durable, Sentinel...). The rest are passives. Feats that give a choice of spell (Magic Initiate, Fey Touched, Shadow Touched) ask for it in the picker, and each chosen leveled spell gets its own free cast once per long rest.
+* Backgrounds (`src/data/backgrounds.ts`) are the 16 from the 2024 PHB. A background only gives its Origin feat, which is ticked and locked in the feat picker. Ability scores, skills and gear from backgrounds aren't tracked; players type their scores in.
+* `feats` and `backgroundId` are optional on the build so older saves still load.
 
 ## Turn tracker
 
@@ -184,7 +200,8 @@ Do one phase at a time. Stop at the end of each phase, summarize what you did, a
    * Undo reverses the last event.
 2. **Basic UI on local state.** Character setup form, resource trackers, HP, Action / Bonus / Reaction lists, turn tracker, rest buttons, undo. Persist to localStorage. Mobile friendly, since people will use it on their phones at the table.
 3. **Polish.** Quick add spell form, active effects list, concentration warning, follow up prompts.
-4. **Firebase (current).** Firebase Authentication uses Google sign-in. Cloud Firestore stores each character's `build` and `tracker` at `users/{uid}/characters/{characterId}`. The front page lists characters, and the header's Characters button returns to it. Existing `main` documents and legacy browser saves migrate automatically. New characters use generated IDs; deletion leaves a null build/tracker marker. Firestore Security Rules restrict access to the signed-in user's UID. Guest and signed-in accounts have separate localStorage rosters with pending changes tracked per character. All guest characters are copied on first sign-in to an empty account; the guest roster stays as a backup. Local changes remain available if Firestore cannot be reached and can be retried. Configure the Firebase web app with `VITE_FIREBASE_*` values at build time; see `README.md` and `firestore.rules`. No keep-alive cron is needed.
+4. **Firebase.** Firebase Authentication uses Google sign-in. Cloud Firestore stores each character's `build` and `tracker` at `users/{uid}/characters/{characterId}`. The front page lists characters, and the header's Characters button returns to it. Existing `main` documents and legacy browser saves migrate automatically. New characters use generated IDs; deletion leaves a null build/tracker marker. Firestore Security Rules restrict access to the signed-in user's UID. Guest and signed-in accounts have separate localStorage rosters with pending changes tracked per character. All guest characters are copied on first sign-in to an empty account; the guest roster stays as a backup. Local changes remain available if Firestore cannot be reached and can be retried. Configure the Firebase web app with `VITE_FIREBASE_*` values at build time; see `README.md` and `firestore.rules`. No keep-alive cron is needed.
+5. **Content (current).** Spell range and duration, feats, backgrounds, and the searchable SRD 5.2 spell list (cantrips to level 3). See the Spells and Feats sections above.
 
 ## Working style
 

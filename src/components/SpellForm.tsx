@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { CastingTime, Spell } from '../rules/types'
+import { SpellSearch } from './SpellSearch'
 
 const CASTING_TIMES: { id: CastingTime; label: string }[] = [
   { id: 'action', label: 'Action' },
@@ -22,8 +23,8 @@ const emptySpell = (castingTime: CastingTime, level = 1): Spell => ({
 })
 
 /**
- * Quick spell entry. Only name and level are really needed; everything else has a default.
- * Enter in the name box adds the spell.
+ * Add a spell: search the SRD list first, or type one in by hand (only name and level are really
+ * needed; everything else has a default). Enter in the name box adds the spell.
  */
 export function SpellForm({
   onAdd,
@@ -59,88 +60,94 @@ export function SpellForm({
 
   return (
     <div className="flex flex-col gap-2 rounded-box border border-base-content/10 bg-base-100 p-3">
-      <div className="flex gap-2">
-        <input
-          className="input flex-1"
-          placeholder="Spell name"
-          aria-label="Spell name"
-          value={spell.name}
-          autoFocus={autoFocus}
-          onChange={(e) => set({ name: e.target.value })}
-          onKeyDown={(e) => e.key === 'Enter' && add()}
-        />
-        {fixedLevel === undefined && (
-          <select
-            className="select w-28"
-            value={spell.level}
-            onChange={(e) => set({ level: Number.parseInt(e.target.value, 10) })}
-            aria-label="Spell level"
-          >
-            {Array.from({ length: 10 }, (_, l) => (
-              <option key={l} value={l}>
-                {l === 0 ? 'Cantrip' : `Level ${l}`}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
+      <SpellSearch onAdd={onAdd} autoFocus={autoFocus} {...(fixedLevel === undefined ? {} : { level: fixedLevel })} />
 
-      <div className="join w-full" role="radiogroup" aria-label="Casting time">
-        {CASTING_TIMES.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            role="radio"
-            aria-checked={spell.castingTime === c.id}
-            className={`btn btn-sm join-item min-w-0 flex-1 px-1 ${spell.castingTime === c.id ? 'btn-active btn-neutral' : ''}`}
-            onClick={() => set({ castingTime: c.id })}
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
-
-      <QuickPick
-        label="Range"
-        options={RANGES}
-        value={spell.range ?? ''}
-        onChange={(range) => set({ range })}
-        onEnter={add}
-      />
-      <QuickPick
-        label="Duration"
-        options={DURATIONS}
-        value={spell.duration ?? ''}
-        onChange={(duration) => set({ duration })}
-        onEnter={add}
-      />
-
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        {(['concentration', 'ritual', 'upcast'] as const).map((flag) => (
-          <label key={flag} className="flex cursor-pointer items-center gap-2 capitalize">
+      <details>
+        <summary className="cursor-pointer text-xs font-semibold text-secondary">Not in the list? Add it by hand</summary>
+        <div className="mt-2 flex flex-col gap-2">
+          <div className="flex gap-2">
             <input
-              type="checkbox"
-              className="checkbox checkbox-sm"
-              checked={spell[flag]}
-              onChange={(e) => set({ [flag]: e.target.checked })}
+              className="input flex-1"
+              placeholder="Spell name"
+              aria-label="Spell name"
+              value={spell.name}
+              onChange={(e) => set({ name: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && add()}
             />
-            {flag}
-          </label>
-        ))}
-      </div>
+            {fixedLevel === undefined && (
+              <select
+                className="select w-28"
+                value={spell.level}
+                onChange={(e) => set({ level: Number.parseInt(e.target.value, 10) })}
+                aria-label="Spell level"
+              >
+                {Array.from({ length: 10 }, (_, l) => (
+                  <option key={l} value={l}>
+                    {l === 0 ? 'Cantrip' : `Level ${l}`}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
 
-      <input
-        className="input input-sm w-full"
-        placeholder="Note (optional), e.g. 8d6 fire, DEX save"
-        aria-label="Spell note"
-        value={spell.note ?? ''}
-        onChange={(e) => set({ note: e.target.value })}
-        onKeyDown={(e) => e.key === 'Enter' && add()}
-      />
+          <div className="join w-full" role="radiogroup" aria-label="Casting time">
+            {CASTING_TIMES.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                role="radio"
+                aria-checked={spell.castingTime === c.id}
+                className={`btn btn-sm join-item min-w-0 flex-1 px-1 ${spell.castingTime === c.id ? 'btn-active btn-neutral' : ''}`}
+                onClick={() => set({ castingTime: c.id })}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
 
-      <button type="button" className="btn btn-sm btn-secondary" onClick={add} disabled={!canAdd}>
-        Add spell
-      </button>
+          <QuickPick
+            label="Range"
+            options={RANGES}
+            value={spell.range ?? ''}
+            onChange={(range) => set({ range })}
+            onEnter={add}
+          />
+          <QuickPick
+            label="Duration"
+            options={DURATIONS}
+            value={spell.duration ?? ''}
+            onChange={(duration) => set({ duration })}
+            onEnter={add}
+          />
+
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {(['concentration', 'ritual', 'upcast'] as const).map((flag) => (
+              <label key={flag} className="flex cursor-pointer items-center gap-2 capitalize">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-sm"
+                  checked={spell[flag]}
+                  onChange={(e) => set({ [flag]: e.target.checked })}
+                />
+                {flag}
+              </label>
+            ))}
+          </div>
+
+          <input
+            className="input input-sm w-full"
+            placeholder="Note (optional), e.g. 8d6 fire, DEX save"
+            aria-label="Spell note"
+            value={spell.note ?? ''}
+            onChange={(e) => set({ note: e.target.value })}
+            onKeyDown={(e) => e.key === 'Enter' && add()}
+          />
+
+          <button type="button" className="btn btn-sm btn-secondary" onClick={add} disabled={!canAdd}>
+            Add spell
+          </button>
+        </div>
+      </details>
     </div>
   )
 }

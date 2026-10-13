@@ -58,6 +58,12 @@ export function ActionRow({ character, action }: { character: CharacterView; act
         {view.source && <SourceTag source={view.source} />}
       </div>
       {view.note && <p className="mt-1 text-sm opacity-70">{view.note}</p>}
+      {spell?.description && (
+        <details className="mt-1 text-xs">
+          <summary className="cursor-pointer opacity-70">Spell text</summary>
+          <p className="mt-1 opacity-80">{spell.description}</p>
+        </details>
+      )}
 
       {showMods && (
         <details className="mt-1 text-xs">

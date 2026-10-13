@@ -14,10 +14,17 @@ export type Spell = {
   upcast: boolean
   /** How far it reaches, as written in the spell: "Self", "Touch", "60 ft", "Unlimited". Optional. */
   range?: string
+  /** Set when the spell was added from the SRD list, so it could be refreshed from the list later. */
+  srdId?: string
   /** How long it lasts, without the word Concentration (that's the flag): "Instantaneous", "1 minute". Optional. */
   duration?: string
   note?: string
+  /** The full spell text, when it came from the SRD list and the note is only a short summary. */
+  description?: string
 }
+
+/** A spell from the bundled SRD 5.2 list, with extra info for searching. */
+export type SrdSpell = Spell & { srdId: string; classes: string[]; school: string }
 
 /** What the player types in. Everything else is computed from this. */
 export type CharacterBuild = {
