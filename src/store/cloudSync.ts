@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
+import { getAuth, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signInWithRedirect, signOut } from 'firebase/auth'
 import { collection, doc, getDocsFromServer, getFirestore, serverTimestamp, setDoc } from 'firebase/firestore'
 import { create } from 'zustand'
 import {
@@ -12,7 +12,11 @@ import {
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  // Firebase opens its OAuth helper over HTTPS. HTTPS app origins proxy
+  // /__/auth/ locally; HTTP development falls back to Firebase's own domain.
+  authDomain: window.location.protocol === 'https:'
+    ? window.location.host
+    : import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
@@ -38,6 +42,9 @@ type AccountStore = {
 const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : 'Something went wrong. Please try again.'
 
+const REDIRECT_ATTEMPT_KEY = 'dnd-google-sign-in-pending'
+const clearRedirectAttempt = () => sessionStorage.removeItem(REDIRECT_ATTEMPT_KEY)
+
 export const useAccountStore = create<AccountStore>((set) => ({
   ready: !auth,
   uid: null,
@@ -49,8 +56,10 @@ export const useAccountStore = create<AccountStore>((set) => ({
     if (!auth) return
     set({ error: null })
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider())
+      sessionStorage.setItem(REDIRECT_ATTEMPT_KEY, 'true')
+      await signInWithRedirect(auth, new GoogleAuthProvider())
     } catch (error) {
+      clearRedirectAttempt()
       set({ error: errorText(error) })
     }
   },
@@ -81,6 +90,7 @@ export function startCloudSync(): void {
   let currentUid: string | null = null
   let timer: ReturnType<typeof setTimeout> | null = null
   let remoteReady = false
+  let redirectError: string | null = null
   // Serialize writes across account changes too: an older write must never finish last.
   let writeChain = Promise.resolve()
 
@@ -130,6 +140,24 @@ export function startCloudSync(): void {
     timer = setTimeout(flush, 500)
   }
   subscribeCharacterChanges(queueSave)
+
+  // Firebase's auth observer waits for this result before reporting the signed-in user.
+  // Capture redirect failures so the returned page can explain why login failed.
+  void getRedirectResult(auth).then((result) => {
+    if (result) {
+      clearRedirectAttempt()
+    } else if (sessionStorage.getItem(REDIRECT_ATTEMPT_KEY)) {
+      clearRedirectAttempt()
+      redirectError = window.location.protocol === 'http:'
+        ? 'Google sign-in did not complete. Browser privacy settings can block Firebase redirects on HTTP localhost. Use the local HTTPS setup or sign in on the deployed HTTPS site.'
+        : 'Google sign-in did not complete. Check that this site is authorized in Firebase and its /__/auth/ helper is available.'
+      if (!useAccountStore.getState().uid) setStatus({ error: redirectError })
+    }
+  }).catch((error: unknown) => {
+    clearRedirectAttempt()
+    redirectError = errorText(error)
+    setStatus({ error: redirectError })
+  })
 
   const loadAccount = async (uid: string, email: string | null, token: number) => {
     const localCharacters = currentUid === uid ? useCharacterStore.getState().characters : readLocalRoster(userKey(uid))
@@ -182,11 +210,12 @@ export function startCloudSync(): void {
     generation++
     remoteReady = false
     if (user) {
+      clearRedirectAttempt()
       void loadAccount(user.uid, user.email, generation)
     } else {
       currentUid = null
       activateCharacterStorage(GUEST_KEY)
-      setStatus({ uid: null, email: null, ready: true, syncStatus: 'local', error: null })
+      setStatus({ uid: null, email: null, ready: true, syncStatus: 'local', error: redirectError })
     }
   }, (error) => {
     clearTimer()

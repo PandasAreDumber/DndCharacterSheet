@@ -3,13 +3,17 @@ import { newTracker } from '../rules/engine'
 import type { CharacterBuild } from '../rules/types'
 
 const firebase = vi.hoisted(() => ({
+  initialize: vi.fn(),
   authChanged: null as null | ((user: { uid: string; email: string } | null) => void),
   getDocs: vi.fn(),
   setDoc: vi.fn(),
+  redirect: vi.fn(),
+  redirectResult: vi.fn(),
 }))
-vi.mock('firebase/app', () => ({ initializeApp: () => ({}) }))
+vi.mock('firebase/app', () => ({ initializeApp: firebase.initialize }))
 vi.mock('firebase/auth', () => ({
-  getAuth: () => ({}), GoogleAuthProvider: class {}, signInWithPopup: vi.fn(), signOut: vi.fn(),
+  getAuth: () => ({}), GoogleAuthProvider: class {},
+  signInWithRedirect: firebase.redirect, getRedirectResult: firebase.redirectResult, signOut: vi.fn(),
   onAuthStateChanged: (_auth: unknown, callback: typeof firebase.authChanged) => { firebase.authChanged = callback },
 }))
 vi.mock('firebase/firestore', () => ({
@@ -37,16 +41,26 @@ const login = (uid = 'one') => firebase.authChanged?.({ uid, email: `${uid}@exam
 beforeEach(() => {
   vi.resetModules()
   vi.useFakeTimers()
+  firebase.initialize.mockReset().mockReturnValue({})
   firebase.getDocs.mockReset().mockResolvedValue(snapshot({}))
   firebase.setDoc.mockReset().mockResolvedValue(undefined)
+  firebase.redirect.mockReset().mockResolvedValue(undefined)
+  firebase.redirectResult.mockReset().mockResolvedValue(null)
   const values = new Map<string, string>()
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => values.get(key) ?? null,
     setItem: (key: string, value: string) => values.set(key, value),
     removeItem: (key: string) => values.delete(key),
   })
-  vi.stubGlobal('window', { addEventListener: vi.fn() })
-  for (const key of ['API_KEY', 'AUTH_DOMAIN', 'PROJECT_ID', 'APP_ID']) vi.stubEnv(`VITE_FIREBASE_${key}`, 'test')
+  const sessionValues = new Map<string, string>()
+  vi.stubGlobal('sessionStorage', {
+    getItem: (key: string) => sessionValues.get(key) ?? null,
+    setItem: (key: string, value: string) => sessionValues.set(key, value),
+    removeItem: (key: string) => sessionValues.delete(key),
+  })
+  vi.stubGlobal('window', { addEventListener: vi.fn(), location: { host: 'localhost:5173', protocol: 'http:' } })
+  for (const key of ['API_KEY', 'PROJECT_ID', 'APP_ID']) vi.stubEnv(`VITE_FIREBASE_${key}`, 'test')
+  vi.stubEnv('VITE_FIREBASE_AUTH_DOMAIN', '')
 })
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
@@ -59,6 +73,50 @@ async function start() {
 }
 
 describe('multi-character cloud sync', () => {
+  it('uses Firebase Hosting for HTTP development, avoiding an HTTPS localhost redirect', async () => {
+    const app = await start()
+    expect(app.firebaseConfigured).toBe(true)
+    expect(firebase.initialize).toHaveBeenCalledWith(expect.objectContaining({ authDomain: 'test.firebaseapp.com' }))
+    await app.useAccountStore.getState().signIn()
+    expect(firebase.redirect).toHaveBeenCalledOnce()
+    expect(firebase.redirect.mock.calls[0][1]).toBeInstanceOf(Object)
+    expect(sessionStorage.getItem('dnd-google-sign-in-pending')).toBe('true')
+    expect(app.useAccountStore.getState().error).toBeNull()
+  })
+
+  it('uses the app domain for HTTPS deployments', async () => {
+    window.location.protocol = 'https:'
+    window.location.host = 'characters.example.com'
+    await start()
+    expect(firebase.initialize).toHaveBeenCalledWith(expect.objectContaining({ authDomain: 'characters.example.com' }))
+  })
+
+  it('shows redirect errors after returning to the guest page', async () => {
+    firebase.redirectResult.mockRejectedValueOnce(new Error('Sign-in was blocked'))
+    const app = await start()
+    await settle()
+    firebase.authChanged?.(null)
+    expect(app.useAccountStore.getState().error).toBe('Sign-in was blocked')
+    expect(app.useAccountStore.getState().ready).toBe(true)
+  })
+
+  it('reports an attempted redirect that returned without a Firebase session', async () => {
+    sessionStorage.setItem('dnd-google-sign-in-pending', 'true')
+    const app = await start()
+    await settle()
+    firebase.authChanged?.(null)
+    expect(app.useAccountStore.getState().uid).toBeNull()
+    expect(app.useAccountStore.getState().error).toContain('did not complete')
+    expect(sessionStorage.getItem('dnd-google-sign-in-pending')).toBeNull()
+  })
+
+  it('shows an error if starting the redirect fails', async () => {
+    firebase.redirect.mockRejectedValueOnce(new Error('Unauthorized domain'))
+    const app = await start()
+    await app.useAccountStore.getState().signIn()
+    expect(app.useAccountStore.getState().error).toBe('Unauthorized domain')
+  })
+
   it('loads the legacy main document alongside all other characters', async () => {
     firebase.getDocs.mockResolvedValue(snapshot({ main: data(), second: data('Bryn') }))
     const app = await start()
