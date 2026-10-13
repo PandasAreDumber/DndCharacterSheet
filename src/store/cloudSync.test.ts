@@ -7,13 +7,15 @@ const firebase = vi.hoisted(() => ({
   authChanged: null as null | ((user: { uid: string; email: string } | null) => void),
   getDocs: vi.fn(),
   setDoc: vi.fn(),
+  popup: vi.fn(),
   redirect: vi.fn(),
   redirectResult: vi.fn(),
 }))
 vi.mock('firebase/app', () => ({ initializeApp: firebase.initialize }))
 vi.mock('firebase/auth', () => ({
   getAuth: () => ({}), GoogleAuthProvider: class {},
-  signInWithRedirect: firebase.redirect, getRedirectResult: firebase.redirectResult, signOut: vi.fn(),
+  signInWithPopup: firebase.popup, signInWithRedirect: firebase.redirect,
+  getRedirectResult: firebase.redirectResult, signOut: vi.fn(),
   onAuthStateChanged: (_auth: unknown, callback: typeof firebase.authChanged) => { firebase.authChanged = callback },
 }))
 vi.mock('firebase/firestore', () => ({
@@ -44,6 +46,7 @@ beforeEach(() => {
   firebase.initialize.mockReset().mockReturnValue({})
   firebase.getDocs.mockReset().mockResolvedValue(snapshot({}))
   firebase.setDoc.mockReset().mockResolvedValue(undefined)
+  firebase.popup.mockReset().mockResolvedValue(undefined)
   firebase.redirect.mockReset().mockResolvedValue(undefined)
   firebase.redirectResult.mockReset().mockResolvedValue(null)
   const values = new Map<string, string>()
@@ -73,15 +76,42 @@ async function start() {
 }
 
 describe('multi-character cloud sync', () => {
-  it('uses Firebase Hosting for HTTP development, avoiding an HTTPS localhost redirect', async () => {
+  it('tries a popup first on HTTP localhost', async () => {
     const app = await start()
     expect(app.firebaseConfigured).toBe(true)
     expect(firebase.initialize).toHaveBeenCalledWith(expect.objectContaining({ authDomain: 'test.firebaseapp.com' }))
     await app.useAccountStore.getState().signIn()
+    expect(firebase.popup).toHaveBeenCalledOnce()
+    expect(firebase.redirect).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem('dnd-google-sign-in-pending')).toBeNull()
+    expect(app.useAccountStore.getState().error).toBeNull()
+  })
+
+  it('falls back to redirect only when the popup is blocked', async () => {
+    firebase.popup.mockRejectedValueOnce(Object.assign(new Error('Popup blocked'), { code: 'auth/popup-blocked' }))
+    const app = await start()
+    await app.useAccountStore.getState().signIn()
+    expect(firebase.popup).toHaveBeenCalledOnce()
     expect(firebase.redirect).toHaveBeenCalledOnce()
-    expect(firebase.redirect.mock.calls[0][1]).toBeInstanceOf(Object)
+    expect(firebase.redirect.mock.calls[0][1]).toBe(firebase.popup.mock.calls[0][1])
     expect(sessionStorage.getItem('dnd-google-sign-in-pending')).toBe('true')
     expect(app.useAccountStore.getState().error).toBeNull()
+  })
+
+  it('does not redirect when the player closes the popup', async () => {
+    firebase.popup.mockRejectedValueOnce(Object.assign(new Error('Popup closed'), { code: 'auth/popup-closed-by-user' }))
+    const app = await start()
+    await app.useAccountStore.getState().signIn()
+    expect(firebase.redirect).not.toHaveBeenCalled()
+    expect(app.useAccountStore.getState().error).toBeNull()
+  })
+
+  it('shows other popup errors without retrying the same problem by redirect', async () => {
+    firebase.popup.mockRejectedValueOnce(Object.assign(new Error('Unauthorized domain'), { code: 'auth/unauthorized-domain' }))
+    const app = await start()
+    await app.useAccountStore.getState().signIn()
+    expect(firebase.redirect).not.toHaveBeenCalled()
+    expect(app.useAccountStore.getState().error).toBe('Unauthorized domain')
   })
 
   it('uses the app domain for HTTPS deployments', async () => {
@@ -111,10 +141,12 @@ describe('multi-character cloud sync', () => {
   })
 
   it('shows an error if starting the redirect fails', async () => {
+    firebase.popup.mockRejectedValueOnce(Object.assign(new Error('Popup blocked'), { code: 'auth/popup-blocked' }))
     firebase.redirect.mockRejectedValueOnce(new Error('Unauthorized domain'))
     const app = await start()
     await app.useAccountStore.getState().signIn()
     expect(app.useAccountStore.getState().error).toBe('Unauthorized domain')
+    expect(sessionStorage.getItem('dnd-google-sign-in-pending')).toBeNull()
   })
 
   it('loads the legacy main document alongside all other characters', async () => {

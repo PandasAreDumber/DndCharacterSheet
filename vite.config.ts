@@ -9,7 +9,7 @@ import { defineConfig, loadEnv } from 'vite'
 export default defineConfig(({ mode }) => {
   const certificate = fileURLToPath(new URL('./.local/localhost-cert.pem', import.meta.url))
   const privateKey = fileURLToPath(new URL('./.local/localhost-key.pem', import.meta.url))
-  const localHttps = existsSync(certificate) && existsSync(privateKey)
+  const localHttps = mode === 'https' && existsSync(certificate) && existsSync(privateKey)
   const env = loadEnv(mode, process.cwd(), 'VITE_FIREBASE_')
 
   return {

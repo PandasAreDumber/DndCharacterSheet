@@ -1,4 +1,4 @@
-param([switch]$Trust)
+param([switch]$ForceNew)
 
 $ErrorActionPreference = 'Stop'
 $outputDirectory = Join-Path (Resolve-Path (Join-Path $PSScriptRoot '..')) '.local'
@@ -18,15 +18,12 @@ if (-not $openssl) {
 
 $certificate = Join-Path $outputDirectory 'localhost-cert.pem'
 $privateKey = Join-Path $outputDirectory 'localhost-key.pem'
-& $openssl req -x509 -newkey rsa:2048 -nodes -keyout $privateKey -out $certificate -days 365 -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1'
-if ($LASTEXITCODE -ne 0) { throw 'OpenSSL could not create the localhost certificate.' }
-
-if ($Trust) {
-  $publicCertificate = Join-Path $outputDirectory 'localhost.cer'
-  & $openssl x509 -in $certificate -outform DER -out $publicCertificate
-  if ($LASTEXITCODE -ne 0) { throw 'OpenSSL could not export the public certificate.' }
-  Import-Certificate -FilePath $publicCertificate -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
-  Write-Output 'Trusted the localhost development certificate for your Windows user account.'
+if ($ForceNew -or -not ((Test-Path -LiteralPath $certificate) -and (Test-Path -LiteralPath $privateKey))) {
+  & $openssl req -x509 -newkey rsa:2048 -nodes -keyout $privateKey -out $certificate -days 365 -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' -addext 'basicConstraints=critical,CA:FALSE' -addext 'keyUsage=critical,digitalSignature,keyEncipherment' -addext 'extendedKeyUsage=serverAuth'
+  if ($LASTEXITCODE -ne 0) { throw 'OpenSSL could not create the localhost certificate.' }
+  Write-Output 'Created a localhost development certificate in .local/.'
+} else {
+  Write-Output 'Using the existing localhost development certificate in .local/.'
 }
 
-Write-Output 'Created the certificate in .local/. Restart Vite and open https://localhost:5173/.'
+Write-Output 'Run npm.cmd run dev:https to use HTTPS. The self-signed certificate may show a browser warning.'

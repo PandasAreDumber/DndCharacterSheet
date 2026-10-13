@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signInWithRedirect, signOut } from 'firebase/auth'
+import { getAuth, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut } from 'firebase/auth'
 import { collection, doc, getDocsFromServer, getFirestore, serverTimestamp, setDoc } from 'firebase/firestore'
 import { create } from 'zustand'
 import {
@@ -41,9 +41,14 @@ type AccountStore = {
 
 const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : 'Something went wrong. Please try again.'
+const isPopupBlocked = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'code' in error && error.code === 'auth/popup-blocked'
+const isPopupClosed = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'code' in error && error.code === 'auth/popup-closed-by-user'
 
 const REDIRECT_ATTEMPT_KEY = 'dnd-google-sign-in-pending'
 const clearRedirectAttempt = () => sessionStorage.removeItem(REDIRECT_ATTEMPT_KEY)
+let signInInProgress = false
 
 export const useAccountStore = create<AccountStore>((set) => ({
   ready: !auth,
@@ -53,14 +58,26 @@ export const useAccountStore = create<AccountStore>((set) => ({
   error: null,
   setAccount: (patch) => set(patch),
   signIn: async () => {
-    if (!auth) return
+    if (!auth || signInInProgress) return
+    signInInProgress = true
     set({ error: null })
     try {
-      sessionStorage.setItem(REDIRECT_ATTEMPT_KEY, 'true')
-      await signInWithRedirect(auth, new GoogleAuthProvider())
+      const provider = new GoogleAuthProvider()
+      try {
+        await signInWithPopup(auth, provider)
+      } catch (error) {
+        if (!isPopupBlocked(error)) {
+          if (!isPopupClosed(error)) set({ error: errorText(error) })
+          return
+        }
+        sessionStorage.setItem(REDIRECT_ATTEMPT_KEY, 'true')
+        await signInWithRedirect(auth, provider)
+      }
     } catch (error) {
       clearRedirectAttempt()
       set({ error: errorText(error) })
+    } finally {
+      signInInProgress = false
     }
   },
   signOut: async () => {
