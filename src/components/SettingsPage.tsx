@@ -36,10 +36,10 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
         <h2 className="font-semibold">Account and cloud save</h2>
         <p className="mt-1 text-sm opacity-70">
           {!firebaseConfigured
-            ? 'Firebase is not configured. Your character is saved in this browser.'
+            ? 'Firebase is not configured. Your characters are saved in this browser.'
             : uid
               ? `${email ?? 'Signed in'} · ${syncStatus === 'saved' ? 'Saved to cloud' : syncStatus === 'saving' ? 'Saving…' : syncStatus === 'loading' ? 'Loading…' : syncStatus === 'error' ? 'Cloud sync needs attention' : 'Saved locally'}`
-              : 'Playing as a guest. Your character is saved in this browser.'}
+              : 'Playing as a guest. Your characters are saved in this browser.'}
         </p>
         {error && <p role="alert" className="mt-2 text-sm text-error">{error}</p>}
         {firebaseConfigured && (

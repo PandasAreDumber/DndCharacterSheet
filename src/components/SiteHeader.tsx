@@ -11,16 +11,18 @@ function UserIcon() {
   )
 }
 
-/** Top of every page: character name, HP and AC on the left, account menu (settings, log in / out) on the right. */
+/** Shared header with the current character, roster navigation, and account menu. */
 export function SiteHeader({
   character,
   onHome,
   onSettings,
+  onCharacters,
   onSettingsPage,
 }: {
   character: CharacterView | null
   onHome: () => void
   onSettings: () => void
+  onCharacters: () => void
   onSettingsPage: boolean
 }) {
   const hp = character?.state.hp
@@ -45,9 +47,9 @@ export function SiteHeader({
         <button
           className="group -mx-2 min-w-0 cursor-pointer rounded-box px-2 py-1 text-left transition-colors hover:bg-neutral-content/10"
           onClick={onHome}
-          title={character ? 'Back to your character' : 'Create your character'}
+          title={character ? 'Back to your character' : 'Your characters'}
         >
-          <div className="truncate font-bold group-hover:underline">{character?.build.name ?? 'Create your character'}</div>
+          <div className="truncate font-bold group-hover:underline">{character?.build.name ?? 'D&D Combat Tracker'}</div>
           {character && hp && (
             <div className="flex items-center gap-2 text-sm tabular-nums">
               <span>
@@ -63,36 +65,39 @@ export function SiteHeader({
           )}
         </button>
 
-        <details ref={menu} className="dropdown dropdown-end">
-          <summary className="btn btn-circle btn-ghost text-neutral-content hover:bg-neutral-content/10" aria-label="Account">
-            <UserIcon />
-          </summary>
-          <ul className="menu dropdown-content z-30 mt-2 w-52 rounded-box bg-base-100 p-2 text-base-content shadow-lg">
-            {uid ? (
-              <>
-                <li className="menu-disabled"><span className="truncate text-xs">{email ?? 'Signed in'}</span></li>
-                <li><button onClick={() => { if (menu.current) menu.current.open = false; void signOut() }}>Log out</button></li>
-              </>
-            ) : (
-              <li>
-                <button disabled={!firebaseConfigured} onClick={() => { if (menu.current) menu.current.open = false; void signIn() }}>
-                  Log in with Google
+        <div className="flex shrink-0 items-center gap-1">
+          <button className="btn btn-ghost btn-sm text-neutral-content" onClick={onCharacters}>Characters</button>
+          <details ref={menu} className="dropdown dropdown-end">
+            <summary className="btn btn-circle btn-ghost text-neutral-content hover:bg-neutral-content/10" aria-label="Account">
+              <UserIcon />
+            </summary>
+            <ul className="menu dropdown-content z-30 mt-2 w-52 rounded-box bg-base-100 p-2 text-base-content shadow-lg">
+              {uid ? (
+                <>
+                  <li className="menu-disabled"><span className="truncate text-xs">{email ?? 'Signed in'}</span></li>
+                  <li><button onClick={() => { if (menu.current) menu.current.open = false; void signOut() }}>Log out</button></li>
+                </>
+              ) : (
+                <li>
+                  <button disabled={!firebaseConfigured} onClick={() => { if (menu.current) menu.current.open = false; void signIn() }}>
+                    Log in with Google
+                  </button>
+                </li>
+              )}
+              <li className={onSettingsPage ? 'menu-disabled' : ''}>
+                <button
+                  disabled={onSettingsPage}
+                  onClick={() => {
+                    if (menu.current) menu.current.open = false
+                    onSettings()
+                  }}
+                >
+                  Settings
                 </button>
               </li>
-            )}
-            <li className={onSettingsPage ? 'menu-disabled' : ''}>
-              <button
-                disabled={onSettingsPage}
-                onClick={() => {
-                  if (menu.current) menu.current.open = false
-                  onSettings()
-                }}
-              >
-                Settings
-              </button>
-            </li>
-          </ul>
-        </details>
+            </ul>
+          </details>
+        </div>
       </div>
     </header>
   )

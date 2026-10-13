@@ -2,46 +2,12 @@
 // and turns UI intents into engine events. No rules math happens here.
 
 import { create } from 'zustand'
-import { abilityMod } from '../rules/abilities'
 import { changeBuild, compact, dispatch, newTracker, undo } from '../rules/engine'
 import type { CharacterBuild, GameEvent, Spell, Tracker } from '../rules/types'
-
-export type CharacterData = { build: CharacterBuild | null; tracker: Tracker | null }
-export type LocalCharacter = { data: CharacterData; dirty: boolean }
-
-export const GUEST_KEY = 'dnd-combat-tracker'
-export const userKey = (uid: string) => `dnd-combat-tracker-user-${uid}`
-const emptyCharacter = (): CharacterData => ({ build: null, tracker: null })
-
-// Existing guest saves use Zustand's old { state, version } shape.
-export function readLocalCharacter(key: string): LocalCharacter {
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return { data: emptyCharacter(), dirty: false }
-    const saved = JSON.parse(raw) as {
-      version?: number
-      state?: CharacterData
-      data?: CharacterData
-      dirty?: boolean
-    }
-    const data = saved.data ?? saved.state
-    if (!data || !('build' in data) || !('tracker' in data)) throw new Error('Invalid save')
-    let build = data.build
-    if (build && (saved.version ?? 0) < 2) build = { ...build, speciesId: null, lineageId: null }
-    if (build && (saved.version ?? 0) < 3) build = { ...build, ac: 10 + abilityMod(build.abilities.dex) }
-    return { data: { build, tracker: data.tracker }, dirty: !!saved.dirty }
-  } catch {
-    return { data: emptyCharacter(), dirty: false }
-  }
-}
-
-export function writeLocalCharacter(key: string, data: CharacterData, dirty: boolean): void {
-  try {
-    localStorage.setItem(key, JSON.stringify({ version: 3, data, dirty }))
-  } catch {
-    // Browser storage may be unavailable or full. Firestore can still save signed-in data.
-  }
-}
+import {
+  GUEST_KEY, emptyCharacter, hasCharacter, readLocalRoster, writeLocalRoster,
+  type CharacterRoster, type LocalCharacter,
+} from './characterStorage'
 
 // Keep the log short enough to replay quickly. Older events get folded into the base.
 const MAX_LOG = 300
@@ -50,11 +16,15 @@ const KEEP_LOG = 150
 export type Message = { kind: 'error' | 'warning'; text: string; id: number }
 
 type CharacterStore = {
+  characters: CharacterRoster
+  activeId: string | null
   build: CharacterBuild | null
   tracker: Tracker | null
   message: Message | null
 
   saveBuild: (build: CharacterBuild) => void
+  createCharacter: (build: CharacterBuild) => string
+  selectCharacter: (id: string) => boolean
   deleteCharacter: () => void
   /** Adds (or replaces, by name) a spell mid-session. Keeps the undo history. */
   addSpell: (spell: Spell) => boolean
@@ -84,22 +54,46 @@ let messageId = 0
 const message = (kind: Message['kind'], text: string): Message => ({ kind, text, id: ++messageId })
 
 let storageKey = GUEST_KEY
-let dirty = false
 let switching = false
-const initial = readLocalCharacter(GUEST_KEY)
-const listeners = new Set<(data: CharacterData) => void>()
+const listeners = new Set<() => void>()
 
 export const useCharacterStore = create<CharacterStore>()((set, get) => ({
-      build: initial.data.build,
-      tracker: initial.data.tracker,
+      characters: readLocalRoster(GUEST_KEY),
+      activeId: null,
+      build: null,
+      tracker: null,
       message: null,
 
+      createCharacter: (build) => {
+        const id = crypto.randomUUID()
+        const data = { build, tracker: newTracker(build) }
+        set({
+          characters: { ...get().characters, [id]: { data, dirty: storageKey !== GUEST_KEY } },
+          activeId: id, ...data, message: null,
+        })
+        return id
+      },
+      selectCharacter: (id) => {
+        const saved = get().characters[id]
+        if (!saved || !hasCharacter(saved.data)) return false
+        set({ activeId: id, ...saved.data, message: null })
+        return true
+      },
       saveBuild: (build) => {
+        if (!get().activeId) { get().createCharacter(build); return }
         const { build: old, tracker } = get()
         set({ build, tracker: old && tracker ? changeBuild(old, build, tracker) : newTracker(build), message: null })
       },
 
-      deleteCharacter: () => set({ build: null, tracker: null, message: null }),
+      deleteCharacter: () => {
+        const { activeId, characters } = get()
+        if (!activeId) return
+        // Persist the deletion until every device can learn about it from Firestore.
+        set({
+          characters: { ...characters, [activeId]: { data: emptyCharacter(), dirty: storageKey !== GUEST_KEY } },
+          activeId: null, ...emptyCharacter(), message: null,
+        })
+      },
 
       addSpell: (spell) => {
         const { build } = get()
@@ -162,31 +156,51 @@ export const useCharacterStore = create<CharacterStore>()((set, get) => ({
     }))
 
 useCharacterStore.subscribe((state, previous) => {
-  if (switching || (state.build === previous.build && state.tracker === previous.tracker)) return
-  const data = { build: state.build, tracker: state.tracker }
-  dirty = storageKey !== GUEST_KEY
-  writeLocalCharacter(storageKey, data, dirty)
-  for (const listener of listeners) listener(data)
+  if (switching) return
+  if (state.activeId && state.activeId === previous.activeId &&
+      (state.build !== previous.build || state.tracker !== previous.tracker)) {
+    useCharacterStore.setState({ characters: {
+      ...state.characters,
+      [state.activeId]: { data: { build: state.build, tracker: state.tracker }, dirty: storageKey !== GUEST_KEY },
+    } })
+    return
+  }
+  if (state.characters === previous.characters) return
+  writeLocalRoster(storageKey, state.characters)
+  for (const listener of listeners) listener()
 })
 
-/** Switch the visible character and its local save together, without crossing accounts. */
-export function activateCharacterStorage(key: string, saved = readLocalCharacter(key)): void {
+/** Account changes clear the selection. Refreshing the same account keeps a valid selection. */
+export function activateCharacterStorage(key: string, characters = readLocalRoster(key)): void {
+  const previousId = key === storageKey ? useCharacterStore.getState().activeId : null
+  const saved = previousId ? characters[previousId] : null
+  const activeId = saved && hasCharacter(saved.data) ? previousId : null
   switching = true
   storageKey = key
-  dirty = saved.dirty
-  useCharacterStore.setState({ ...saved.data, message: null })
-  writeLocalCharacter(key, saved.data, dirty)
+  useCharacterStore.setState({ characters, activeId, ...(activeId && saved ? saved.data : emptyCharacter()), message: null })
+  writeLocalRoster(key, characters)
   switching = false
 }
 
-export function markCharacterSynced(data: CharacterData): void {
-  const current = useCharacterStore.getState()
-  if (current.build !== data.build || current.tracker !== data.tracker) return
-  dirty = false
-  writeLocalCharacter(storageKey, data, false)
+export function markCharacterSynced(key: string, id: string, saved: LocalCharacter): void {
+  if (key !== storageKey) {
+    const cached = readLocalRoster(key)
+    // An upload may finish after logout. Clear only the exact persisted version it saved.
+    if (cached[id]?.dirty && JSON.stringify(cached[id].data) === JSON.stringify(saved.data)) {
+      writeLocalRoster(key, { ...cached, [id]: { ...cached[id], dirty: false } })
+    }
+    return
+  }
+  const { characters } = useCharacterStore.getState()
+  if (characters[id] !== saved) return
+  switching = true
+  const next = { ...characters, [id]: { ...saved, dirty: false } }
+  useCharacterStore.setState({ characters: next })
+  writeLocalRoster(key, next)
+  switching = false
 }
 
-export function subscribeCharacterChanges(listener: (data: CharacterData) => void): () => void {
+export function subscribeCharacterChanges(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }

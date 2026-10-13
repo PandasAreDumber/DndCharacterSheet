@@ -1,20 +1,22 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
-import { doc, getDocFromServer, getFirestore, serverTimestamp, setDoc } from 'firebase/firestore'
+import { getAuth, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut } from 'firebase/auth'
+import { collection, doc, getDocsFromServer, getFirestore, serverTimestamp, setDoc } from 'firebase/firestore'
 import { create } from 'zustand'
 import {
-  GUEST_KEY,
-  activateCharacterStorage,
-  markCharacterSynced,
-  readLocalCharacter,
-  subscribeCharacterChanges,
-  userKey,
-  type CharacterData,
+  activateCharacterStorage, markCharacterSynced, subscribeCharacterChanges, useCharacterStore,
 } from './characterStore'
+import {
+  GUEST_KEY, decodeCharacter, hasCharacter, mergeCharacters, readLocalRoster, userKey,
+  type CharacterRoster,
+} from './characterStorage'
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  // Firebase opens its OAuth helper over HTTPS. HTTPS app origins proxy
+  // /__/auth/ locally; HTTP development falls back to Firebase's own domain.
+  authDomain: window.location.protocol === 'https:'
+    ? window.location.host
+    : import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
@@ -39,6 +41,14 @@ type AccountStore = {
 
 const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : 'Something went wrong. Please try again.'
+const isPopupBlocked = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'code' in error && error.code === 'auth/popup-blocked'
+const isPopupClosed = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'code' in error && error.code === 'auth/popup-closed-by-user'
+
+const REDIRECT_ATTEMPT_KEY = 'dnd-google-sign-in-pending'
+const clearRedirectAttempt = () => sessionStorage.removeItem(REDIRECT_ATTEMPT_KEY)
+let signInInProgress = false
 
 export const useAccountStore = create<AccountStore>((set) => ({
   ready: !auth,
@@ -48,12 +58,26 @@ export const useAccountStore = create<AccountStore>((set) => ({
   error: null,
   setAccount: (patch) => set(patch),
   signIn: async () => {
-    if (!auth) return
+    if (!auth || signInInProgress) return
+    signInInProgress = true
     set({ error: null })
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider())
+      const provider = new GoogleAuthProvider()
+      try {
+        await signInWithPopup(auth, provider)
+      } catch (error) {
+        if (!isPopupBlocked(error)) {
+          if (!isPopupClosed(error)) set({ error: errorText(error) })
+          return
+        }
+        sessionStorage.setItem(REDIRECT_ATTEMPT_KEY, 'true')
+        await signInWithRedirect(auth, provider)
+      }
     } catch (error) {
+      clearRedirectAttempt()
       set({ error: errorText(error) })
+    } finally {
+      signInInProgress = false
     }
   },
   signOut: async () => {
@@ -67,8 +91,6 @@ export const useAccountStore = create<AccountStore>((set) => ({
   },
 }))
 
-const hasCharacter = (data: CharacterData) => !!data.build && !!data.tracker
-
 let started = false
 let retry: (() => void) | null = null
 
@@ -76,140 +98,154 @@ export function retryCloudSync(): void {
   retry?.()
 }
 
-/** Start once, outside React StrictMode. The guest save and each UID have separate local keys. */
+/** A save captures both the account and character ID, independent of the selected sheet. */
 export function startCloudSync(): void {
   if (started || !auth || !db) return
   started = true
-  const firebaseAuth = auth
   const firestore = db
   let generation = 0
   let currentUid: string | null = null
   let timer: ReturnType<typeof setTimeout> | null = null
-  let pending: CharacterData | null = null
-  let writeChain = Promise.resolve()
-  let importedGuest = false
   let remoteReady = false
-  let saveVersion = 0
+  let redirectError: string | null = null
+  // Serialize writes across account changes too: an older write must never finish last.
+  let writeChain = Promise.resolve()
 
   const setStatus = (patch: Partial<ReturnType<typeof useAccountStore.getState>>) =>
     useAccountStore.getState().setAccount(patch)
+  const clearTimer = () => {
+    if (timer) clearTimeout(timer)
+    timer = null
+  }
 
   const flush = () => {
-    if (!currentUid || !pending) return
+    clearTimer()
+    if (!currentUid || !remoteReady) return
     const uid = currentUid
     const token = generation
-    const data = pending
-    const version = saveVersion
-    pending = null
+    const entries = Object.entries(useCharacterStore.getState().characters).filter(([, saved]) => saved.dirty)
+    if (!entries.length) return
     setStatus({ syncStatus: 'saving', error: null })
-    writeChain = writeChain
-      .catch(() => undefined)
-      .then(async () => {
-        await setDoc(doc(firestore, 'users', uid, 'characters', 'main'), {
-          schemaVersion: 3,
-          build: data.build,
-          tracker: data.tracker,
-          updatedAt: serverTimestamp(),
-        })
-        if (token !== generation) return
-        if (version === saveVersion) markCharacterSynced(data)
-        if (importedGuest && hasCharacter(data)) {
-          try { localStorage.removeItem(GUEST_KEY) } catch { /* Cloud copy is already saved. */ }
-          importedGuest = false
+    writeChain = writeChain.then(async () => {
+      let failure: unknown = null
+      for (const [id, saved] of entries) {
+        try {
+          await setDoc(doc(firestore, 'users', uid, 'characters', id), {
+            schemaVersion: 4,
+            build: saved.data.build,
+            tracker: saved.data.tracker,
+            updatedAt: serverTimestamp(),
+          })
+          markCharacterSynced(userKey(uid), id, saved)
+        } catch (error) {
+          failure = error
         }
-        setStatus({ syncStatus: version === saveVersion ? 'saved' : 'saving', error: null })
+      }
+      if (token !== generation) return
+      const dirty = Object.values(useCharacterStore.getState().characters).some((saved) => saved.dirty)
+      setStatus({
+        syncStatus: failure ? 'error' : dirty ? 'saving' : 'saved',
+        error: failure ? errorText(failure) : null,
       })
-      .catch((error: unknown) => {
-        if (token === generation && version === saveVersion)
-          setStatus({ syncStatus: 'error', error: error instanceof Error ? error.message : 'Cloud save failed.' })
-      })
+    })
   }
 
-  const queueSave = (data: CharacterData) => {
-    saveVersion++
-    pending = data
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(() => {
-      timer = null
-      flush()
-    }, 500)
+  const queueSave = () => {
+    if (!currentUid || !remoteReady) return
+    clearTimer()
+    setStatus({ syncStatus: 'saving', error: null })
+    timer = setTimeout(flush, 500)
   }
+  subscribeCharacterChanges(queueSave)
 
-  subscribeCharacterChanges((data) => {
-    if (currentUid && remoteReady && useAccountStore.getState().ready) queueSave(data)
+  // Firebase's auth observer waits for this result before reporting the signed-in user.
+  // Capture redirect failures so the returned page can explain why login failed.
+  void getRedirectResult(auth).then((result) => {
+    if (result) {
+      clearRedirectAttempt()
+    } else if (sessionStorage.getItem(REDIRECT_ATTEMPT_KEY)) {
+      clearRedirectAttempt()
+      redirectError = window.location.protocol === 'http:'
+        ? 'Google sign-in did not complete. Browser privacy settings can block Firebase redirects on HTTP localhost. Use the local HTTPS setup or sign in on the deployed HTTPS site.'
+        : 'Google sign-in did not complete. Check that this site is authorized in Firebase and its /__/auth/ helper is available.'
+      if (!useAccountStore.getState().uid) setStatus({ error: redirectError })
+    }
+  }).catch((error: unknown) => {
+    clearRedirectAttempt()
+    redirectError = errorText(error)
+    setStatus({ error: redirectError })
   })
 
   const loadAccount = async (uid: string, email: string | null, token: number) => {
+    const localCharacters = currentUid === uid ? useCharacterStore.getState().characters : readLocalRoster(userKey(uid))
     currentUid = uid
     remoteReady = false
-    const local = readLocalCharacter(userKey(uid))
-    activateCharacterStorage(userKey(uid), local)
+    activateCharacterStorage(userKey(uid), localCharacters)
     setStatus({ uid, email, ready: false, syncStatus: 'loading', error: null })
-
     try {
-      const remote = await getDocFromServer(doc(firestore, 'users', uid, 'characters', 'main'))
+      // Do not wait for uploads: Firestore can leave an offline write pending indefinitely.
+      // Dirty local entries protect in-flight edits when this read returns an older version.
+      const snapshot = await getDocsFromServer(collection(firestore, 'users', uid, 'characters'))
       if (token !== generation) return
-      remoteReady = true
-      if (local.dirty) {
-        // Preserve offline edits made on this device. The latest save wins across devices.
-        queueSave(local.data)
-      } else if (remote.exists()) {
-        const value = remote.data()
-        if (!('build' in value) || !('tracker' in value)) throw new Error('Cloud character data is incomplete.')
-        activateCharacterStorage(userKey(uid), { data: { build: value.build, tracker: value.tracker } as CharacterData, dirty: false })
-        setStatus({ syncStatus: 'saved' })
-      } else if (hasCharacter(local.data)) {
-        queueSave(local.data)
-      } else {
-        const guest = readLocalCharacter(GUEST_KEY)
-        if (hasCharacter(guest.data)) {
-          importedGuest = true
-          activateCharacterStorage(userKey(uid), { data: guest.data, dirty: true })
-          queueSave(guest.data)
-        } else {
-          setStatus({ syncStatus: 'saved' })
-        }
+      const remote: CharacterRoster = Object.fromEntries(snapshot.docs.map((document) => {
+        const value = document.data()
+        return [document.id, { data: decodeCharacter(value, value.schemaVersion ?? 3), dirty: false }]
+      }))
+      const local = { ...useCharacterStore.getState().characters }
+      // A read can start before an upload commits but arrive after its acknowledgement.
+      // Keep versions that were pending when the read started, even if now marked clean.
+      for (const [id, saved] of Object.entries(localCharacters)) {
+        if (saved.dirty && local[id]?.data === saved.data) local[id] = saved
       }
-      setStatus({ ready: true })
+      let characters = mergeCharacters(local, remote)
+      if (!Object.keys(characters).length) {
+        // Import the whole guest roster only into an empty account. Keep the guest backup.
+        characters = Object.fromEntries(Object.entries(readLocalRoster(GUEST_KEY))
+          .filter(([, saved]) => hasCharacter(saved.data))
+          .map(([id, saved]) => [id, { ...saved, dirty: true }]))
+      }
+      activateCharacterStorage(userKey(uid), characters)
+      remoteReady = true
+      setStatus({ ready: true, syncStatus: 'saved' })
+      if (Object.values(characters).some((saved) => saved.dirty)) queueSave()
     } catch (error) {
       if (token !== generation) return
       remoteReady = false
-      setStatus({ ready: true, syncStatus: 'error', error: error instanceof Error ? error.message : 'Cloud load failed.' })
+      setStatus({ ready: true, syncStatus: 'error', error: errorText(error) })
     }
   }
 
   retry = () => {
     if (!currentUid) return
-    if (timer) clearTimeout(timer)
-    timer = null
-    pending = null
+    clearTimer()
     void loadAccount(currentUid, useAccountStore.getState().email, ++generation)
   }
 
-  onAuthStateChanged(firebaseAuth, (user) => {
+  onAuthStateChanged(auth, (user) => {
+    // Capture pending edits for the old account before switching the local roster.
+    flush()
     generation++
     remoteReady = false
-    writeChain = Promise.resolve()
-    if (timer) clearTimeout(timer)
-    timer = null
-    pending = null
-    importedGuest = false
     if (user) {
+      clearRedirectAttempt()
       void loadAccount(user.uid, user.email, generation)
     } else {
       currentUid = null
       activateCharacterStorage(GUEST_KEY)
-      setStatus({ uid: null, email: null, ready: true, syncStatus: 'local', error: null })
+      setStatus({ uid: null, email: null, ready: true, syncStatus: 'local', error: redirectError })
     }
   }, (error) => {
+    clearTimer()
+    generation++
+    remoteReady = false
     currentUid = null
     activateCharacterStorage(GUEST_KEY)
     setStatus({ uid: null, email: null, ready: true, syncStatus: 'error', error: error.message })
   })
 
   window.addEventListener('online', () => {
-    if (currentUid && useAccountStore.getState().syncStatus === 'error') {
-      retry?.()
-    }
+    if (currentUid && useAccountStore.getState().syncStatus === 'error') retry?.()
   })
+  // Local saves are synchronous; also start any queued upload when leaving the page.
+  window.addEventListener('pagehide', flush)
 }

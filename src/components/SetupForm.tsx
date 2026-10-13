@@ -64,8 +64,12 @@ function toDraft(b: CharacterBuild | null): Draft {
 const toInt = (s: string) => Number.parseInt(s, 10)
 const inRange = (n: number, lo: number, hi: number) => Number.isInteger(n) && n >= lo && n <= hi
 
-export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null; onDone: () => void }) {
-  const saveBuild = useCharacterStore((s) => s.saveBuild)
+export function SetupForm({ initial, onSave, onDone, onCancel }: {
+  initial: CharacterBuild | null
+  onSave: (build: CharacterBuild) => void
+  onDone: () => void
+  onCancel: () => void
+}) {
   const deleteCharacter = useCharacterStore((s) => s.deleteCharacter)
   const [draft, setDraft] = useState<Draft>(() => toDraft(initial))
 
@@ -87,7 +91,7 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
 
   const save = () => {
     if (errors.length) return
-    saveBuild({
+    onSave({
       name: draft.name.trim() || 'Adventurer',
       classId: draft.classId,
       subclassId: draft.subclassId || null,
@@ -337,11 +341,9 @@ export function SetupForm({ initial, onDone }: { initial: CharacterBuild | null;
       )}
 
       <div className="flex gap-2">
-        {initial && (
-          <button className="btn btn-ghost" onClick={onDone}>
-            Cancel
-          </button>
-        )}
+        <button className="btn btn-ghost" onClick={onCancel}>
+          Cancel
+        </button>
         <button className="btn btn-primary flex-1" onClick={save} disabled={errors.length > 0}>
           {initial ? 'Save' : 'Create character'}
         </button>

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/__/auth/:path*",
+      "destination": "https://dndcharactersheet-ae43b.firebaseapp.com/__/auth/:path*"
+    }
+  ]
+}
